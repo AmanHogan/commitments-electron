@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /Users/amanhogan/dev/commitment-tracker/backend/src/main/java -path \"*/model/*\" -name \"*.java\" -exec wc -l {} \\\\;)",
+      "Bash(npm install *)",
+      "Bash(sed -i '' 's|\"@/types/types\"|\"@/types/types\"|g' /Users/amanhogan/dev/commitments-electron/src/renderer/src/lib/utils/export-markdown.ts)",
+      "Bash(sed -i '' 's|from \"@/lib/utils\"|from \"@/lib/utils\"|g' /Users/amanhogan/dev/commitments-electron/src/renderer/src/lib/utils/one-on-one-export.ts)",
+      "Bash(sed -i '' 's|from \"@/types/types\"|from \"@/types/types\"|g' /Users/amanhogan/dev/commitments-electron/src/renderer/src/lib/mappers/businessCommitmentOneMapper.ts)",
+      "Bash(npm run *)",
+      "Bash(sed -i '' 's/const \\\\[loading, setLoading\\\\]/const [_loading, setLoading]/g' /Users/amanhogan/dev/commitments-electron/src/renderer/src/components/bcomm-page.tsx)",
+      "Bash(sed -i '' 's/  UpdateDevelopmentCommitmentOneDTO,//' /Users/amanhogan/dev/commitments-electron/src/renderer/src/components/dcomm1-page.tsx)",
+      "Bash(kill %1)",
+      "Read(//tmp/**)",
+      "Bash(xargs cat *)",
+      "Bash(xargs ls *)",
+      "Bash(sed -i '' '1s/\"use client\"//' /Users/amanhogan/dev/commitments-electron/src/renderer/src/components/import-cards-panel.tsx)",
+      "Bash(sed -i '' '/^$/{ 1d; }' /Users/amanhogan/dev/commitments-electron/src/renderer/src/components/import-cards-panel.tsx)",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/electron/package.json'\\).version\\)\")"
+    ]
+  }
+}
