@@ -1,11 +1,47 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import type { NoteGroup, Note } from '@/types/types'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Markdown } from '@/components/markdown'
-import { Plus, Trash2, ArrowLeft, Columns2, Eye, Pencil, Download, Upload, FolderDown } from 'lucide-react'
+import { Plus, Trash2, ArrowLeft, Columns2, Eye, Pencil, Download, Upload, FolderDown, X } from 'lucide-react'
 
 type ViewMode = 'edit' | 'split' | 'preview'
+type Preset = 'this-month' | 'last-month' | '3-months' | '6-months' | 'this-year' | 'all' | 'custom'
+
+function getPresetRange(preset: Preset): { from: Date | null; to: Date | null } {
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
+  if (preset === 'all') return { from: null, to: null }
+  if (preset === 'this-month') {
+    return { from: new Date(now.getFullYear(), now.getMonth(), 1), to: startOfToday }
+  }
+  if (preset === 'last-month') {
+    const y = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear()
+    const m = now.getMonth() === 0 ? 11 : now.getMonth() - 1
+    return { from: new Date(y, m, 1), to: new Date(y, m + 1, 0, 23, 59, 59) }
+  }
+  if (preset === '3-months') {
+    return { from: new Date(now.getFullYear(), now.getMonth() - 3, 1), to: startOfToday }
+  }
+  if (preset === '6-months') {
+    return { from: new Date(now.getFullYear(), now.getMonth() - 6, 1), to: startOfToday }
+  }
+  if (preset === 'this-year') {
+    return { from: new Date(now.getFullYear(), 0, 1), to: startOfToday }
+  }
+  return { from: null, to: null }
+}
+
+const PRESETS: { value: Preset; label: string }[] = [
+  { value: 'this-month', label: 'This Month' },
+  { value: 'last-month', label: 'Last Month' },
+  { value: '3-months', label: 'Last 3 Months' },
+  { value: '6-months', label: 'Last 6 Months' },
+  { value: 'this-year', label: 'This Year' },
+  { value: 'all', label: 'All Time' },
+  { value: 'custom', label: 'Custom Range' },
+]
 
 export default function NoteGroupPage() {
   const { id } = useParams<{ id: string }>()
@@ -20,12 +56,37 @@ export default function NoteGroupPage() {
   const [mode, setMode] = useState<ViewMode>('split')
   const [editingGroupName, setEditingGroupName] = useState(false)
   const [groupName, setGroupName] = useState('')
-
   const [importing, setImporting] = useState(false)
+
+  // Export modal state
+  const [exportOpen, setExportOpen] = useState(false)
+  const [preset, setPreset] = useState<Preset>('all')
+  const [customFrom, setCustomFrom] = useState('')
+  const [customTo, setCustomTo] = useState('')
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const activeNoteRef = useRef<Note | null>(null)
   activeNoteRef.current = activeNote
+
+  // Notes that match the current export filter
+  const filteredForExport = useMemo(() => {
+    let from: Date | null = null
+    let to: Date | null = null
+    if (preset === 'custom') {
+      from = customFrom ? new Date(customFrom) : null
+      to = customTo ? new Date(customTo + 'T23:59:59') : null
+    } else {
+      const range = getPresetRange(preset)
+      from = range.from
+      to = range.to
+    }
+    return noteList.filter(n => {
+      const d = new Date(n.createdAt)
+      if (from && d < from) return false
+      if (to && d > to) return false
+      return true
+    })
+  }, [noteList, preset, customFrom, customTo])
 
   useEffect(() => {
     window.api.noteGroups.getAll().then(groups => {
@@ -103,12 +164,14 @@ export default function NoteGroupPage() {
     await window.api.notes.exportNote(title, content)
   }
 
-  async function handleExportGroup() {
+  async function handleExportFiltered() {
     if (!group) return
-    await window.api.notes.exportGroup(group.name, noteList.map(n => ({
+    const toExport = filteredForExport.map(n => ({
       title: n.id === activeNote?.id ? title : n.title,
-      content: n.id === activeNote?.id ? content : n.content
-    })))
+      content: n.id === activeNote?.id ? content : n.content,
+    }))
+    const count = await window.api.notes.exportGroup(group.name, toExport)
+    if (count > 0) setExportOpen(false)
   }
 
   async function handleImport() {
@@ -160,8 +223,8 @@ export default function NoteGroupPage() {
           <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={handleImport} disabled={importing}>
             <Upload className="h-3.5 w-3.5" />{importing ? 'Importing…' : 'Import'}
           </Button>
-          <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={handleExportGroup} disabled={noteList.length === 0}>
-            <FolderDown className="h-3.5 w-3.5" /> Export All
+          <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => setExportOpen(true)} disabled={noteList.length === 0}>
+            <FolderDown className="h-3.5 w-3.5" /> Export
           </Button>
         </div>
       </div>
@@ -214,7 +277,7 @@ export default function NoteGroupPage() {
                   placeholder="Note title"
                 />
                 <div className="flex gap-1 shrink-0">
-                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Export note" onClick={handleExportNote}>
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Export this note" onClick={handleExportNote}>
                     <Download className="h-3.5 w-3.5" />
                   </Button>
                   <div className="w-px bg-border mx-0.5" />
@@ -262,6 +325,67 @@ export default function NoteGroupPage() {
           )}
         </div>
       </div>
+
+      {/* Export Modal */}
+      {exportOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setExportOpen(false)}>
+          <div className="bg-card border rounded-xl shadow-2xl w-full max-w-md p-6 space-y-5" onClick={e => e.stopPropagation()}>
+            {/* Modal header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold">Export Notes</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Choose which notes to export by date created.</p>
+              </div>
+              <button className="p-1 rounded hover:bg-accent text-muted-foreground" onClick={() => setExportOpen(false)}>
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Preset buttons */}
+            <div className="grid grid-cols-2 gap-2">
+              {PRESETS.map(p => (
+                <button
+                  key={p.value}
+                  onClick={() => setPreset(p.value)}
+                  className={`rounded-lg border px-3 py-2 text-sm text-left transition-colors
+                    ${preset === p.value ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent/50'}`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Custom range inputs */}
+            {preset === 'custom' && (
+              <div className="flex gap-3 items-center">
+                <div className="flex-1 space-y-1">
+                  <label className="text-xs text-muted-foreground">From</label>
+                  <Input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} className="h-8 text-sm" />
+                </div>
+                <div className="flex-1 space-y-1">
+                  <label className="text-xs text-muted-foreground">To</label>
+                  <Input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} className="h-8 text-sm" />
+                </div>
+              </div>
+            )}
+
+            {/* Match count */}
+            <div className={`rounded-lg px-4 py-3 text-sm ${filteredForExport.length > 0 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-muted text-muted-foreground'}`}>
+              {filteredForExport.length === 0
+                ? 'No notes match this range.'
+                : `${filteredForExport.length} note${filteredForExport.length === 1 ? '' : 's'} will be exported.`}
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setExportOpen(false)}>Cancel</Button>
+              <Button size="sm" disabled={filteredForExport.length === 0} onClick={handleExportFiltered}>
+                <FolderDown className="h-3.5 w-3.5 mr-1" /> Export {filteredForExport.length > 0 ? `${filteredForExport.length} notes` : ''}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

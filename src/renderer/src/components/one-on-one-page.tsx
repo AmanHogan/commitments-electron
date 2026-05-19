@@ -1,5 +1,5 @@
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import type {
   OneOnOne,
   CreateOneOnOneDTO,
@@ -21,6 +21,54 @@ import { Textarea } from "./ui/textarea"
 import { Label } from "./ui/label"
 import { Button } from "./ui/button"
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "./ui/card"
+
+// ─── Date-range helpers (shared with import modal) ───────────────────────────
+
+type Preset = 'this-month' | 'last-month' | '3-months' | '6-months' | 'this-year' | 'all' | 'custom'
+
+const PRESETS: { value: Preset; label: string }[] = [
+  { value: 'this-month',  label: 'This Month' },
+  { value: 'last-month',  label: 'Last Month' },
+  { value: '3-months',    label: 'Last 3 Months' },
+  { value: '6-months',    label: 'Last 6 Months' },
+  { value: 'this-year',   label: 'This Year' },
+  { value: 'all',         label: 'All Time' },
+  { value: 'custom',      label: 'Custom Range' },
+]
+
+function presetRange(preset: Preset): { from: Date | null; to: Date | null } {
+  const now = new Date()
+  const eod = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
+  if (preset === 'all')         return { from: null, to: null }
+  if (preset === 'this-month')  return { from: new Date(now.getFullYear(), now.getMonth(), 1), to: eod }
+  if (preset === 'last-month') {
+    const y = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear()
+    const m = now.getMonth() === 0 ? 11 : now.getMonth() - 1
+    return { from: new Date(y, m, 1), to: new Date(y, m + 1, 0, 23, 59, 59) }
+  }
+  if (preset === '3-months') return { from: new Date(now.getFullYear(), now.getMonth() - 3, 1), to: eod }
+  if (preset === '6-months') return { from: new Date(now.getFullYear(), now.getMonth() - 6, 1), to: eod }
+  if (preset === 'this-year')   return { from: new Date(now.getFullYear(), 0, 1), to: eod }
+  return { from: null, to: null }
+}
+
+function inRange(dateStr: string | undefined, from: Date | null, to: Date | null): boolean {
+  if (!from && !to) return true
+  if (!dateStr) return true
+  const d = new Date(dateStr)
+  if (from && d < from) return false
+  if (to   && d > to)   return false
+  return true
+}
+
+// Which field label to show in the modal header
+const IMPORT_SOURCE_LABELS: Record<ImportField, string> = {
+  businessPartnerWork: 'Business Partner Impact',
+  tdpContributions:    'TDP Program Impact',
+  trainingSkills:      'Development Commitment',
+  innovationEvents:    'Innovation Commitment',
+  additionalItems:     'Skills',
+}
 
 type ImportField =
   | "businessPartnerWork"
@@ -70,6 +118,10 @@ export default function OneOnOnePage({ initialDocs }: Props) {
   const [form, setForm] = useState<CreateOneOnOneDTO>(emptyForm())
   const [editingId, setEditingId] = useState<number | null>(null)
   const [importingField, setImportingField] = useState<ImportField | null>(null)
+  const [importModalField, setImportModalField] = useState<ImportField | null>(null)
+  const [importPreset, setImportPreset] = useState<Preset>('all')
+  const [importCustomFrom, setImportCustomFrom] = useState('')
+  const [importCustomTo, setImportCustomTo] = useState('')
   const [exportingId, setExportingId] = useState<number | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -240,19 +292,26 @@ export default function OneOnOnePage({ initialDocs }: Props) {
       .join("\n\n---\n\n")
   }
 
-  async function handleImport(field: ImportField) {
+  async function handleImport(field: ImportField, from: Date | null, to: Date | null) {
+    setImportModalField(null)
     setImportingField(field)
     setError(null)
     try {
       let text = ""
       if (field === "businessPartnerWork") {
-        const data = await getAllCommitmentsOne()
+        const data = (await getAllCommitmentsOne()).filter(c =>
+          inRange(c.started ?? c.dateCompleted, from, to)
+        )
         text = formatBusinessCommitmentOne(data)
       } else if (field === "tdpContributions") {
-        const data = await getAllBusinessCommitmentsTwo()
+        const data = (await getAllBusinessCommitmentsTwo()).filter(c =>
+          inRange(c.started ?? c.finished, from, to)
+        )
         text = formatBusinessCommitmentTwo(data)
       } else if (field === "trainingSkills") {
-        const items = await getAllDevelopmentCommitmentsOne()
+        const items = (await getAllDevelopmentCommitmentsOne()).filter(i =>
+          inRange(i.itemDate ?? i.createdAt, from, to)
+        )
         const itemsWithModules = await Promise.all(
           items.map(async (item) => {
             if (item.id != null) {
@@ -271,7 +330,9 @@ export default function OneOnOnePage({ initialDocs }: Props) {
         const data = await getAllSkills()
         text = formatSkills(data)
       } else if (field === "innovationEvents") {
-        const data = await getAllDevelopmentCommitmentsTwo()
+        const data = (await getAllDevelopmentCommitmentsTwo()).filter(e =>
+          inRange(e.started ?? e.finished, from, to)
+        )
         text = formatDevelopmentCommitmentTwo(data)
       }
       handleField(field, text)
@@ -280,7 +341,18 @@ export default function OneOnOnePage({ initialDocs }: Props) {
     } finally {
       setImportingField(null)
     }
-  } // ─── Export ────────────────────────────────────────────────────────────────
+  }
+
+  // Resolve the current modal's from/to dates
+  const importRange = useMemo(() => {
+    if (importPreset === 'custom') {
+      return {
+        from: importCustomFrom ? new Date(importCustomFrom) : null,
+        to:   importCustomTo   ? new Date(importCustomTo + 'T23:59:59') : null,
+      }
+    }
+    return presetRange(importPreset)
+  }, [importPreset, importCustomFrom, importCustomTo]) // ─── Export ────────────────────────────────────────────────────────────────
 
   async function handleExport(doc: OneOnOne, format: "md" | "pdf" | "docx") {
     setExportingId(doc.id!)
@@ -297,10 +369,20 @@ export default function OneOnOnePage({ initialDocs }: Props) {
   }
 
   function importBtn(field: ImportField, sourceLabel: string) {
+    const noFilter = field === 'additionalItems'
     return (
       <button
         type="button"
-        onClick={() => handleImport(field)}
+        onClick={() => {
+          if (noFilter) {
+            handleImport(field, null, null)
+          } else {
+            setImportPreset('all')
+            setImportCustomFrom('')
+            setImportCustomTo('')
+            setImportModalField(field)
+          }
+        }}
         disabled={importingField === field}
         className="text-xs text-blue-600 hover:underline disabled:opacity-50"
       >
@@ -522,6 +604,92 @@ export default function OneOnOnePage({ initialDocs }: Props) {
           </form>
         </Card>
       )}
+      {/* Import date-range modal */}
+      {importModalField && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setImportModalField(null)}
+        >
+          <div
+            className="bg-card border rounded-xl shadow-2xl w-full max-w-md p-6 space-y-5"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold">
+                  Import from {IMPORT_SOURCE_LABELS[importModalField]}
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Filter records by date before importing.
+                </p>
+              </div>
+              <button
+                className="p-1 rounded hover:bg-accent text-muted-foreground"
+                onClick={() => setImportModalField(null)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              {PRESETS.map(p => (
+                <button
+                  key={p.value}
+                  onClick={() => setImportPreset(p.value)}
+                  className={`rounded-lg border px-3 py-2 text-sm text-left transition-colors
+                    ${importPreset === p.value
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'hover:bg-accent/50'}`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            {importPreset === 'custom' && (
+              <div className="flex gap-3 items-end">
+                <div className="flex-1 space-y-1">
+                  <label className="text-xs text-muted-foreground">From</label>
+                  <Input
+                    type="date"
+                    value={importCustomFrom}
+                    onChange={e => setImportCustomFrom(e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div className="flex-1 space-y-1">
+                  <label className="text-xs text-muted-foreground">To</label>
+                  <Input
+                    type="date"
+                    value={importCustomTo}
+                    onChange={e => setImportCustomTo(e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                </div>
+              </div>
+            )}
+
+            <p className="text-xs text-muted-foreground">
+              {importPreset === 'all'
+                ? 'All records will be imported.'
+                : 'Only records whose start date falls in this range will be imported.'}
+            </p>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setImportModalField(null)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => handleImport(importModalField, importRange.from, importRange.to)}
+              >
+                Import
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Document list */}
       <ul className="space-y-3">
         {docs.map((doc) => (
