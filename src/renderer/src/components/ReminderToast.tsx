@@ -22,6 +22,8 @@ const CRITICALITY_COLOR: Record<string, string> = {
 function intervalLabel(r: ReminderData): string {
   if (r.intervalKey === 'due-today') return 'Due today'
   if (r.intervalKey === 'due') return 'Due now'
+  if (r.intervalKey === 'overdue') return 'Past due'
+  if (r.minutesBefore === 1) return 'Due in 1 minute'
   if (r.minutesBefore != null) return `Due in ${r.minutesBefore} minutes`
   return 'Reminder'
 }

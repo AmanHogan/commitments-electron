@@ -52,13 +52,17 @@ export default function StartupBriefing() {
   const [items, setItems] = useState<BriefingItem[] | null>(null)
 
   useEffect(() => {
-    const off = window.api.notifications.onBriefing((raw) => {
-      const list = raw as BriefingItem[]
-      if (list.length === 0) return
-      setItems(list)
-      playChime()
-    })
-    return off
+    // Pull-based: we ask main for the data once we're mounted.
+    // This guarantees the listener (setItems) exists before data arrives —
+    // avoids the race condition where Windows starts slower than Mac.
+    window.api.notifications.rendererReady()
+      .then((raw) => {
+        const list = raw as BriefingItem[]
+        if (list.length === 0) return
+        setItems(list)
+        playChime()
+      })
+      .catch(() => {})
   }, [])
 
   if (!items) return null

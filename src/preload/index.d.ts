@@ -103,9 +103,9 @@ interface DbApi {
     readJson: () => Promise<string | null>
   }
   notifications: {
+    rendererReady: () => Promise<unknown[]>
     checkNow: () => Promise<void>
     onReminder: (callback: (data: unknown) => void) => () => void
-    onBriefing: (callback: (items: unknown[]) => void) => () => void
     snooze: (id: number, minutes: number) => Promise<void>
     dismiss: (id: number) => Promise<void>
   }

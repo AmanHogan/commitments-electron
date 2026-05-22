@@ -66,18 +66,31 @@ function checkTimedReminders() {
     dueDateTime.setHours(h, m, 0, 0)
     const minutesUntil = (dueDateTime.getTime() - now.getTime()) / 60000
 
-    if (minutesUntil >= 27.5 && minutesUntil < 32.5 && !fired.has('pre30')) {
-      fired.add('pre30')
-      sendReminderToRenderer(item, 'pre30', 30)
-    } else if (minutesUntil >= 7.5 && minutesUntil < 12.5 && !fired.has('pre10')) {
+    // Only act when within the 30-minute window (or overdue)
+    if (minutesUntil > 32.5) continue
+
+    const nothingFiredYet = fired.size === 0
+
+    if (nothingFiredYet) {
+      // First time we've seen this item inside the 30-min zone — fire immediately
+      // regardless of which sub-window it lands in
+      const mins = Math.max(0, Math.round(minutesUntil))
+      const key = minutesUntil < -2.5 ? 'overdue' : minutesUntil < 2.5 ? 'due' : minutesUntil < 7.5 ? 'pre5' : minutesUntil < 12.5 ? 'pre10' : 'pre30'
+      fired.add(key)
+      sendReminderToRenderer(item, key, minutesUntil < 0 ? null : mins)
+    } else if (!fired.has('pre10') && minutesUntil >= 7.5 && minutesUntil < 12.5) {
       fired.add('pre10')
       sendReminderToRenderer(item, 'pre10', 10)
-    } else if (minutesUntil >= 2.5 && minutesUntil < 7.5 && !fired.has('pre5')) {
+    } else if (!fired.has('pre5') && minutesUntil >= 2.5 && minutesUntil < 7.5) {
       fired.add('pre5')
       sendReminderToRenderer(item, 'pre5', 5)
-    } else if (minutesUntil >= -2.5 && minutesUntil < 2.5 && !fired.has('due')) {
+    } else if (!fired.has('due') && minutesUntil >= -2.5 && minutesUntil < 2.5) {
       fired.add('due')
       sendReminderToRenderer(item, 'due', 0)
+    } else if (!fired.has('overdue') && minutesUntil < -2.5) {
+      // Fires if a snooze pushed the user past the due time without seeing 'due'
+      fired.add('overdue')
+      sendReminderToRenderer(item, 'overdue', null)
     }
   }
 }
@@ -319,19 +332,17 @@ app.whenReady().then(() => {
   })
 
   // ─── Action Item Reminders ────────────────────────────────────────────────────
-  // Startup briefing — show all upcoming items once after the window is ready
-  setTimeout(() => {
+  // Renderer calls this once its listeners are mounted — safer than a fixed timer
+  // because on Windows Electron can start significantly slower than on Mac
+  ipcMain.handle('notifications:rendererReady', () => {
+    // Briefing: return all upcoming items directly so renderer can display them
     try {
-      const upcoming = actionItems.getUpcoming() as Array<Record<string, unknown>>
-      if (upcoming.length > 0 && mainWindowRef && !mainWindowRef.isDestroyed()) {
-        mainWindowRef.webContents.send('briefing:show', upcoming)
-      }
-    } catch { /* ignore */ }
-  }, 3000)
+      return actionItems.getUpcoming()
+    } catch { return [] }
+  })
 
-  // Timed reminders — check every 1 minute for 30 / 10 / 5 min windows + at due time
-  setTimeout(checkTimedReminders, 6000)           // initial check after app loads
-  setInterval(checkTimedReminders, 60 * 1000)     // then every minute
+  // Timed reminders — poll every 1 minute; renderer being ready starts the first check
+  setInterval(checkTimedReminders, 60 * 1000)
 
   // Allow renderer to trigger a manual check (e.g. when user opens the page)
   ipcMain.handle('notifications:checkNow', () => {

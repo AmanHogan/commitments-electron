@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AppSidebar } from './components/app-sidebar'
 import { SidebarProvider, SidebarInset, SidebarTrigger } from './components/ui/sidebar'
@@ -23,6 +24,13 @@ import ReminderToast from './components/ReminderToast'
 import StartupBriefing from './components/StartupBriefing'
 
 function Layout({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    // Trigger the first timed-reminder check once the renderer is fully mounted.
+    // StartupBriefing calls rendererReady() which also starts the briefing;
+    // this ensures the reminder poll also runs immediately on both Mac and Windows.
+    window.api.notifications.checkNow().catch(() => {})
+  }, [])
+
   return (
     <SidebarProvider>
       <AppSidebar />
