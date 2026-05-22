@@ -141,6 +141,8 @@ db.exec(`
     criticality TEXT,
     dateStarted TEXT,
     dateFinished TEXT,
+    dueDate TEXT,
+    dueTime TEXT,
     completed INTEGER DEFAULT 0,
     createdAt TEXT DEFAULT (datetime('now')),
     updatedAt TEXT DEFAULT (datetime('now'))
@@ -225,6 +227,8 @@ db.exec(`
 
 // Migrate existing tables — safe to run every start (errors are swallowed)
 try { db.exec("ALTER TABLE skills ADD COLUMN tags TEXT DEFAULT '[]'") } catch { /* already exists */ }
+try { db.exec("ALTER TABLE action_items ADD COLUMN dueDate TEXT") } catch { /* already exists */ }
+try { db.exec("ALTER TABLE action_items ADD COLUMN dueTime TEXT") } catch { /* already exists */ }
 
 const BOOL_COLS = new Set([
   'improvedOutcomes', 'increasedEfficiency', 'reducedRiskCost',
@@ -464,15 +468,19 @@ export const actionItems = {
   getAll: () => normalizeAll(db.prepare('SELECT * FROM action_items ORDER BY createdAt DESC').all() as Record<string, unknown>[]),
   create: (p_raw: Record<string, unknown>) => {
     const p = sanitize(p_raw)
-    const r = db.prepare('INSERT INTO action_items (name,description,criticality,dateStarted,dateFinished,completed) VALUES (?,?,?,?,?,?)').run(p.name,p.description??null,p.criticality??null,p.dateStarted??null,p.dateFinished??null,p.completed??0)
+    const r = db.prepare('INSERT INTO action_items (name,description,criticality,dateStarted,dateFinished,dueDate,dueTime,completed) VALUES (?,?,?,?,?,?,?,?)').run(p.name,p.description??null,p.criticality??null,p.dateStarted??null,p.dateFinished??null,p.dueDate??null,p.dueTime??null,p.completed??0)
     return normalize(db.prepare('SELECT * FROM action_items WHERE id=?').get(r.lastInsertRowid) as Record<string, unknown>)
   },
   update: (id: number, p_raw: Record<string, unknown>) => {
     const p = sanitize(p_raw)
-    db.prepare("UPDATE action_items SET name=?,description=?,criticality=?,dateStarted=?,dateFinished=?,completed=?,updatedAt=datetime('now') WHERE id=?").run(p.name,p.description??null,p.criticality??null,p.dateStarted??null,p.dateFinished??null,p.completed??0,id)
+    db.prepare("UPDATE action_items SET name=?,description=?,criticality=?,dateStarted=?,dateFinished=?,dueDate=?,dueTime=?,completed=?,updatedAt=datetime('now') WHERE id=?").run(p.name,p.description??null,p.criticality??null,p.dateStarted??null,p.dateFinished??null,p.dueDate??null,p.dueTime??null,p.completed??0,id)
     return normalize(db.prepare('SELECT * FROM action_items WHERE id=?').get(id) as Record<string, unknown>)
   },
-  delete: (id: number) => { db.prepare('DELETE FROM action_items WHERE id=?').run(id) }
+  delete: (id: number) => { db.prepare('DELETE FROM action_items WHERE id=?').run(id) },
+  getOverdue: () => {
+    const today = new Date().toISOString().slice(0, 10)
+    return normalizeAll(db.prepare("SELECT * FROM action_items WHERE completed=0 AND dueDate IS NOT NULL AND dueDate <= ?").all(today) as Record<string, unknown>[])
+  }
 }
 
 // ─── Flash Card Sets ──────────────────────────────────────────────────────────

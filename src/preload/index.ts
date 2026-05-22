@@ -103,6 +103,9 @@ const api = {
     saveJson: (suggestedName: string, content: string) => ipcRenderer.invoke('data:saveJson', suggestedName, content),
     readJson: () => ipcRenderer.invoke('data:readJson')
   },
+  notifications: {
+    checkNow: () => ipcRenderer.invoke('notifications:checkNow')
+  },
   noteGroups: {
     getAll: () => ipcRenderer.invoke('noteGroups:getAll'),
     create: (name: string) => ipcRenderer.invoke('noteGroups:create', name),

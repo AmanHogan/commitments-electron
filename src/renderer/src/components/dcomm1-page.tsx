@@ -22,6 +22,7 @@ import { Label } from "./ui/label"
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "./ui/card"
 import DocComp from "./ui/doc-comp"
 import { exportDcomm1ToMarkdown } from "@/lib/utils/export-markdown"
+import { exportDcomm1ToPdf } from "@/lib/utils/export-pdf"
 
 type Props = {
   initialItems: DevelopmentCommitmentOne[]
@@ -229,13 +230,22 @@ export default function DevelopmentCommitmentOnePage({ initialItems }: Props) {
           </button>
         </div>
 
-        <button
-          type="button"
-          onClick={() => exportDcomm1ToMarkdown(items, modulesByItem)}
-          className="rounded border px-3 py-1.5 text-sm hover:bg-accent"
-        >
-          Export to Markdown
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => exportDcomm1ToPdf(items, modulesByItem)}
+            className="rounded border px-3 py-1.5 text-sm hover:bg-accent"
+          >
+            Export PDF
+          </button>
+          <button
+            type="button"
+            onClick={() => exportDcomm1ToMarkdown(items, modulesByItem)}
+            className="rounded border px-3 py-1.5 text-sm hover:bg-accent"
+          >
+            Export Markdown
+          </button>
+        </div>
       </div>
       {/* New learning item form */}
       <Card className="p-0">

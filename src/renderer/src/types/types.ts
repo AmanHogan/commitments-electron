@@ -234,6 +234,8 @@ export type ActionItem = {
   criticality?: string
   dateStarted?: string
   dateFinished?: string
+  dueDate?: string
+  dueTime?: string
   completed?: boolean
   createdAt?: string
   updatedAt?: string
@@ -251,6 +253,8 @@ export const emptyActionItemForm = (): CreateActionItemDTO => ({
   criticality: "",
   dateStarted: "",
   dateFinished: "",
+  dueDate: "",
+  dueTime: "",
   completed: false,
 })
 

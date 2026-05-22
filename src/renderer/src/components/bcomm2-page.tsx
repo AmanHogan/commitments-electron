@@ -15,6 +15,7 @@ import { Label } from "./ui/label"
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "./ui/card"
 import DocComp from "./ui/doc-comp"
 import { exportBcomm2ToMarkdown } from "@/lib/utils/export-markdown"
+import { exportBcomm2ToPdf } from "@/lib/utils/export-pdf"
 
 type Props = {
   initialEvents: BusinessCommitmentTwo[]
@@ -233,13 +234,22 @@ export default function BusinessCommitmentTwoPage({ initialEvents }: Props) {
           </button>
         </div>
 
-        <button
-          type="button"
-          onClick={() => exportBcomm2ToMarkdown(events)}
-          className="rounded border px-3 py-1.5 text-sm hover:bg-accent"
-        >
-          Export to Markdown
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => exportBcomm2ToPdf(events)}
+            className="rounded border px-3 py-1.5 text-sm hover:bg-accent"
+          >
+            Export PDF
+          </button>
+          <button
+            type="button"
+            onClick={() => exportBcomm2ToMarkdown(events)}
+            className="rounded border px-3 py-1.5 text-sm hover:bg-accent"
+          >
+            Export Markdown
+          </button>
+        </div>
       </div>
       <Card className="p-0">
         <form onSubmit={handleSave} className="flex flex-col">

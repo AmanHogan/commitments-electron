@@ -70,6 +70,8 @@ export default function ActionItemsPage({ initialItems }: Props) {
       criticality: item.criticality ?? "",
       dateStarted: item.dateStarted ?? "",
       dateFinished: item.dateFinished ?? "",
+      dueDate: item.dueDate ?? "",
+      dueTime: item.dueTime ?? "",
       completed: item.completed ?? false,
     })
   }
@@ -78,6 +80,20 @@ export default function ActionItemsPage({ initialItems }: Props) {
     setEditingId(null)
     setForm(emptyActionItemForm())
     setError(null)
+  }
+
+  async function markDone(item: ActionItem) {
+    const today = new Date().toISOString().slice(0, 10)
+    try {
+      const updated = await updateActionItem(item.id!, {
+        ...item,
+        completed: true,
+        dateFinished: today,
+      })
+      setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)))
+    } catch {
+      setError("Failed to mark item as done")
+    }
   }
 
   async function handleDelete(id: number) {
@@ -211,6 +227,27 @@ export default function ActionItemsPage({ initialItems }: Props) {
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="dueDate">Due Date</Label>
+                <Input
+                  id="dueDate"
+                  type="date"
+                  value={form.dueDate ?? ""}
+                  onChange={(e) => handleField("dueDate", e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="dueTime">Due Time</Label>
+                <Input
+                  id="dueTime"
+                  type="time"
+                  value={form.dueTime ?? ""}
+                  onChange={(e) => handleField("dueTime", e.target.value)}
+                />
+              </div>
+            </div>
+
             {error && <p className="text-sm text-red-500">{error}</p>}
 
             <div className="flex gap-2">
@@ -261,44 +298,69 @@ export default function ActionItemsPage({ initialItems }: Props) {
       </div>
       <div className="space-y-3">
         {sortedItems.length === 0 && <p className="text-sm text-muted-foreground">No action items yet.</p>}
-        {sortedItems.map((item) => (
-          <Card key={item.id}>
-            <CardContent className="pt-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-1">
-                  <p className="font-medium">{item.name}</p>
-                  <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
-                    {item.criticality && (
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                          criticalityColors[item.criticality] ?? "bg-gray-100 text-gray-700"
-                        }`}
-                      >
-                        {item.criticality}
-                      </span>
+        {sortedItems.map((item) => {
+          const today = new Date().toISOString().slice(0, 10)
+          const isOverdue = !item.completed && item.dueDate && item.dueDate < today
+          const isDueToday = !item.completed && item.dueDate && item.dueDate === today
+          return (
+            <Card key={item.id} className={isOverdue ? "border-red-400" : isDueToday ? "border-yellow-400" : ""}>
+              <CardContent className="pt-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <p className="font-medium">{item.name}</p>
+                    <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+                      {item.criticality && (
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                            criticalityColors[item.criticality] ?? "bg-gray-100 text-gray-700"
+                          }`}
+                        >
+                          {item.criticality}
+                        </span>
+                      )}
+                      {item.completed ? (
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
+                          Completed
+                        </span>
+                      ) : null}
+                      {isOverdue && (
+                        <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+                          Overdue
+                        </span>
+                      )}
+                      {isDueToday && (
+                        <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-700">
+                          Due Today
+                        </span>
+                      )}
+                      {item.description && <span>Description: {item.description}</span>}
+                      {item.dateStarted && <span>Started: {item.dateStarted}</span>}
+                      {item.dateFinished && <span>Finished: {item.dateFinished}</span>}
+                    </div>
+                    {item.dueDate && (
+                      <p className={`text-xs font-medium ${isOverdue ? "text-red-600" : isDueToday ? "text-yellow-600" : "text-muted-foreground"}`}>
+                        Due: {item.dueDate}{item.dueTime ? ` at ${item.dueTime}` : ""}
+                      </p>
                     )}
-                    {item.completed ? (
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
-                        Completed
-                      </span>
-                    ) : null}
-                    {item.description && <span>Description: {item.description}</span>}
-                    {item.dateStarted && <span>Started: {item.dateStarted}</span>}
-                    {item.dateFinished && <span>Finished: {item.dateFinished}</span>}
+                  </div>
+                  <div className="flex shrink-0 flex-col gap-1.5">
+                    {!item.completed && (
+                      <Button size="sm" variant="outline" className="border-green-400 text-green-700 hover:bg-green-50" onClick={() => markDone(item)}>
+                        ✓ Done
+                      </Button>
+                    )}
+                    <Button size="sm" variant="outline" onClick={() => startEdit(item)}>
+                      Edit
+                    </Button>
+                    <Button size="sm" variant="destructive" onClick={() => handleDelete(item.id!)} disabled={loading}>
+                      Delete
+                    </Button>
                   </div>
                 </div>
-                <div className="flex shrink-0 gap-2">
-                  <Button size="sm" variant="outline" onClick={() => startEdit(item)}>
-                    Edit
-                  </Button>
-                  <Button size="sm" variant="destructive" onClick={() => handleDelete(item.id!)} disabled={loading}>
-                    Delete
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
     </div>
   )

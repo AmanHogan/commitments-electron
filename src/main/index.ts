@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, protocol, net, dialog } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, protocol, net, dialog, Notification } from 'electron'
 import { join, extname, basename } from 'path'
 import { pathToFileURL } from 'url'
 import fs from 'fs'
@@ -239,6 +239,50 @@ app.whenReady().then(() => {
       created.push(notes.update(note.id as number, { content }))
     }
     return created
+  })
+
+  // ─── Action Item Notifications ────────────────────────────────────────────────
+  function checkAndNotifyOverdue() {
+    if (!Notification.isSupported()) return
+    try {
+      const overdue = actionItems.getOverdue() as Array<Record<string, unknown>>
+      for (const item of overdue) {
+        // For items due today, only notify if dueTime has passed (or no dueTime set)
+        const dueDate = item.dueDate as string | undefined
+        const dueTime = item.dueTime as string | undefined
+        if (dueDate) {
+          const today = new Date().toISOString().slice(0, 10)
+          if (dueDate === today && dueTime) {
+            const [h, m] = dueTime.split(':').map(Number)
+            const dueMs = new Date().setHours(h, m, 0, 0)
+            if (Date.now() < dueMs) continue // not yet due today
+          }
+        }
+        const name = item.name as string
+        const dueLine = dueDate
+          ? dueDate < new Date().toISOString().slice(0, 10)
+            ? `Overdue since ${dueDate}`
+            : `Due today${dueTime ? ` at ${dueTime}` : ''}`
+          : 'Past due'
+        new Notification({
+          title: `Action Item Due: ${name}`,
+          body: dueLine + (item.criticality ? ` · ${item.criticality}` : '')
+        }).show()
+      }
+    } catch (err) {
+      console.error('Notification check failed:', err)
+    }
+  }
+
+  // Check once on startup (after a short delay so the window loads first)
+  setTimeout(checkAndNotifyOverdue, 8000)
+
+  // Then repeat every 15 minutes
+  setInterval(checkAndNotifyOverdue, 15 * 60 * 1000)
+
+  // Allow renderer to trigger a manual check (e.g. when user opens the page)
+  ipcMain.handle('notifications:checkNow', () => {
+    checkAndNotifyOverdue()
   })
 
   createWindow()

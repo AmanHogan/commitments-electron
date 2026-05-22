@@ -102,6 +102,9 @@ interface DbApi {
     saveJson: (suggestedName: string, content: string) => Promise<boolean>
     readJson: () => Promise<string | null>
   }
+  notifications: {
+    checkNow: () => Promise<void>
+  }
   noteGroups: {
     getAll: () => Promise<unknown[]>
     create: (name: string) => Promise<unknown>

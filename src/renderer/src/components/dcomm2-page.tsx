@@ -12,6 +12,7 @@ import { Label } from "./ui/label"
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "./ui/card"
 import DocComp from "./ui/doc-comp"
 import { exportDcomm2ToMarkdown } from "@/lib/utils/export-markdown"
+import { exportDcomm2ToPdf } from "@/lib/utils/export-pdf"
 
 type Props = {
   initialEvents: DevelopmentCommitmentTwo[]
@@ -135,13 +136,22 @@ export default function DevelopmentCommitmentTwoPage({ initialEvents }: Props) {
             {sortDirection === "asc" ? "Ascending" : "Descending"}
           </button>
         </div>
-        <button
-          type="button"
-          onClick={() => exportDcomm2ToMarkdown(events)}
-          className="rounded border px-3 py-1.5 text-sm hover:bg-accent"
-        >
-          Export to Markdown
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => exportDcomm2ToPdf(events)}
+            className="rounded border px-3 py-1.5 text-sm hover:bg-accent"
+          >
+            Export PDF
+          </button>
+          <button
+            type="button"
+            onClick={() => exportDcomm2ToMarkdown(events)}
+            className="rounded border px-3 py-1.5 text-sm hover:bg-accent"
+          >
+            Export Markdown
+          </button>
+        </div>
       </div>
       {/* Event form */}
       <Card className="p-0">

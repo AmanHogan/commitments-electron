@@ -7,6 +7,8 @@ export default function ActionItemsPage() {
 
   useEffect(() => {
     window.api.actionItems.getAll().then((d) => setData(d as ActionItem[]))
+    // Trigger a notification check when user opens this page
+    window.api.notifications.checkNow().catch(() => {})
   }, [])
 
   return (
