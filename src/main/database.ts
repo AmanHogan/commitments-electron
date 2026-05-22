@@ -223,6 +223,9 @@ db.exec(`
   );
 `)
 
+// Migrate existing tables — safe to run every start (errors are swallowed)
+try { db.exec("ALTER TABLE skills ADD COLUMN tags TEXT DEFAULT '[]'") } catch { /* already exists */ }
+
 const BOOL_COLS = new Set([
   'improvedOutcomes', 'increasedEfficiency', 'reducedRiskCost',
   'enhancedCustomerExperience', 'enhancedEmployeeExperience',
@@ -619,11 +622,11 @@ export const notes = {
 export const skills = {
   getAll: () => normalizeAll(db.prepare('SELECT * FROM skills ORDER BY proficiency DESC').all() as Record<string, unknown>[]),
   create: (p: Record<string, unknown>) => {
-    const r = db.prepare('INSERT INTO skills (name,proficiency,date) VALUES (?,?,?)').run(p.name, p.proficiency??3, p.date??null)
+    const r = db.prepare('INSERT INTO skills (name,proficiency,date,tags) VALUES (?,?,?,?)').run(p.name, p.proficiency??3, p.date??null, JSON.stringify(p.tags ?? []))
     return normalize(db.prepare('SELECT * FROM skills WHERE id=?').get(r.lastInsertRowid) as Record<string, unknown>)
   },
   update: (id: number, p: Record<string, unknown>) => {
-    db.prepare("UPDATE skills SET name=?,proficiency=?,date=?,updatedAt=datetime('now') WHERE id=?").run(p.name, p.proficiency??3, p.date??null, id)
+    db.prepare("UPDATE skills SET name=?,proficiency=?,date=?,tags=?,updatedAt=datetime('now') WHERE id=?").run(p.name, p.proficiency??3, p.date??null, JSON.stringify(p.tags ?? []), id)
     return normalize(db.prepare('SELECT * FROM skills WHERE id=?').get(id) as Record<string, unknown>)
   },
   delete: (id: number) => { db.prepare('DELETE FROM skills WHERE id=?').run(id) }

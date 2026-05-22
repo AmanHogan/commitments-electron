@@ -99,6 +99,10 @@ const api = {
     updateLabel: (id: number, label: string) => ipcRenderer.invoke('resumeFiles:updateLabel', id, label),
     delete: (id: number) => ipcRenderer.invoke('resumeFiles:delete', id)
   },
+  data: {
+    saveJson: (suggestedName: string, content: string) => ipcRenderer.invoke('data:saveJson', suggestedName, content),
+    readJson: () => ipcRenderer.invoke('data:readJson')
+  },
   noteGroups: {
     getAll: () => ipcRenderer.invoke('noteGroups:getAll'),
     create: (name: string) => ipcRenderer.invoke('noteGroups:create', name),

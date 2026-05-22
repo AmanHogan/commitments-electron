@@ -284,6 +284,7 @@ export type Skill = {
   name: string
   proficiency: number
   date?: string
+  tags?: string[]
   createdAt?: string
   updatedAt?: string
 }
@@ -294,6 +295,7 @@ export const emptySkillForm = (): CreateSkillDTO => ({
   name: "",
   proficiency: 3,
   date: "",
+  tags: [],
 })
 
 // ─── Flashcards ───────────────────────────────────────────────────────────────

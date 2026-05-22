@@ -174,6 +174,26 @@ app.whenReady().then(() => {
   ipcMain.handle('resumeFiles:updateLabel', (_, id, label) => resumeFiles.updateLabel(id, label))
   ipcMain.handle('resumeFiles:delete', (_, id) => resumeFiles.delete(id))
 
+  // ─── JSON data transfer ───────────────────────────────────────────────────────
+  ipcMain.handle('data:saveJson', async (_, suggestedName: string, content: string) => {
+    const result = await dialog.showSaveDialog({
+      defaultPath: suggestedName,
+      filters: [{ name: 'JSON', extensions: ['json'] }]
+    })
+    if (result.canceled || !result.filePath) return false
+    await fs.promises.writeFile(result.filePath, content, 'utf-8')
+    return true
+  })
+
+  ipcMain.handle('data:readJson', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [{ name: 'JSON', extensions: ['json'] }]
+    })
+    if (result.canceled || !result.filePaths[0]) return null
+    return fs.promises.readFile(result.filePaths[0], 'utf-8')
+  })
+
   // ─── Note Groups ──────────────────────────────────────────────────────────────
   ipcMain.handle('noteGroups:getAll', () => noteGroups.getAll())
   ipcMain.handle('noteGroups:create', (_, name) => noteGroups.create(name))

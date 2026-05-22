@@ -15,7 +15,8 @@
       "Bash(xargs ls *)",
       "Bash(sed -i '' '1s/\"use client\"//' /Users/amanhogan/dev/commitments-electron/src/renderer/src/components/import-cards-panel.tsx)",
       "Bash(sed -i '' '/^$/{ 1d; }' /Users/amanhogan/dev/commitments-electron/src/renderer/src/components/import-cards-panel.tsx)",
-      "Bash(node -e \"console.log\\(require\\('./node_modules/electron/package.json'\\).version\\)\")"
+      "Bash(node -e \"console.log\\(require\\('./node_modules/electron/package.json'\\).version\\)\")",
+      "Bash(npx tsc *)"
     ]
   }
 }
