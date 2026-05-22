@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Download, Upload, X, AlertTriangle } from 'lucide-react'
+import { Download, Upload, X, Check } from 'lucide-react'
 
 type Props = {
-  /** Human-readable name shown in the confirmation modal */
+  /** Human-readable name shown in the inline confirmation */
   label: string
-  /** How many records currently exist (for the "replace N records" warning) */
+  /** How many records currently exist */
   recordCount: number
   /** Type key embedded in the JSON so we can reject mismatched files on import */
   dataType: string
@@ -19,16 +19,19 @@ export function JsonTransferBar({ label, recordCount, dataType, onExport, onImpo
   const [exporting, setExporting] = useState(false)
   const [importing, setImporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
 
-  // Confirmation modal state
+  // Pending state: records parsed from file, waiting for user to confirm
   const [pendingRecords, setPendingRecords] = useState<unknown[] | null>(null)
 
   async function handleExport() {
     setExporting(true)
     setError(null)
+    setSuccess(null)
     try {
       await onExport()
-    } catch (e) {
+      setSuccess(`Exported ${recordCount} ${label} record${recordCount !== 1 ? 's' : ''}.`)
+    } catch {
       setError('Export failed.')
     } finally {
       setExporting(false)
@@ -37,6 +40,8 @@ export function JsonTransferBar({ label, recordCount, dataType, onExport, onImpo
 
   async function handlePickFile() {
     setError(null)
+    setSuccess(null)
+    setPendingRecords(null)
     const raw = await window.api.data.readJson()
     if (!raw) return
     try {
@@ -61,6 +66,7 @@ export function JsonTransferBar({ label, recordCount, dataType, onExport, onImpo
     setError(null)
     try {
       await onImport(pendingRecords)
+      setSuccess(`Added ${pendingRecords.length} record${pendingRecords.length !== 1 ? 's' : ''} to ${label}.`)
       setPendingRecords(null)
     } catch {
       setError('Import failed.')
@@ -70,53 +76,61 @@ export function JsonTransferBar({ label, recordCount, dataType, onExport, onImpo
   }
 
   return (
-    <>
-      <div className="flex items-center gap-2">
-        <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={handleExport} disabled={exporting || recordCount === 0}>
-          <Download className="h-3.5 w-3.5" />
-          {exporting ? 'Exporting…' : 'Export JSON'}
-        </Button>
-        <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={handlePickFile} disabled={importing}>
-          <Upload className="h-3.5 w-3.5" />
-          Import JSON
-        </Button>
-        {error && <p className="text-xs text-destructive">{error}</p>}
-      </div>
+    <div className="flex flex-wrap items-center gap-2">
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-7 gap-1.5 text-xs"
+        onClick={handleExport}
+        disabled={exporting || recordCount === 0}
+      >
+        <Download className="h-3.5 w-3.5" />
+        {exporting ? 'Exporting…' : 'Export JSON'}
+      </Button>
 
-      {/* Confirmation modal */}
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-7 gap-1.5 text-xs"
+        onClick={handlePickFile}
+        disabled={importing}
+      >
+        <Upload className="h-3.5 w-3.5" />
+        Import JSON
+      </Button>
+
+      {/* Inline confirmation — shown after a valid file is picked */}
       {pendingRecords && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-          onClick={() => setPendingRecords(null)}
-        >
-          <div
-            className="bg-card border rounded-xl shadow-2xl w-full max-w-sm p-6 space-y-4"
-            onClick={e => e.stopPropagation()}
+        <span className="flex items-center gap-1.5 rounded-md border bg-muted/50 px-2 py-1 text-xs">
+          <span className="text-muted-foreground">
+            Add <strong className="text-foreground">{pendingRecords.length}</strong> record{pendingRecords.length !== 1 ? 's' : ''}?
+          </span>
+          <Button
+            size="sm"
+            variant="default"
+            className="h-5 px-2 text-xs"
+            onClick={confirmImport}
+            disabled={importing}
           >
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-                <div>
-                  <h2 className="text-base font-semibold">Replace {label}?</h2>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    This will <strong>delete all {recordCount} existing</strong> {label} records and replace them with{' '}
-                    <strong>{pendingRecords.length} records</strong> from the file. This cannot be undone.
-                  </p>
-                </div>
-              </div>
-              <button className="p-1 rounded hover:bg-accent text-muted-foreground shrink-0" onClick={() => setPendingRecords(null)}>
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setPendingRecords(null)}>Cancel</Button>
-              <Button variant="destructive" size="sm" onClick={confirmImport} disabled={importing}>
-                {importing ? 'Importing…' : `Replace ${recordCount > 0 ? `${recordCount} records` : 'all'}`}
-              </Button>
-            </div>
-          </div>
-        </div>
+            <Check className="h-3 w-3 mr-0.5" />
+            {importing ? 'Adding…' : 'Add'}
+          </Button>
+          <button
+            className="rounded p-0.5 hover:bg-accent text-muted-foreground"
+            onClick={() => setPendingRecords(null)}
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </span>
       )}
-    </>
+
+      {error && <p className="text-xs text-destructive">{error}</p>}
+      {success && !pendingRecords && (
+        <p className="flex items-center gap-1 text-xs text-green-600">
+          <Check className="h-3 w-3" />
+          {success}
+        </p>
+      )}
+    </div>
   )
 }

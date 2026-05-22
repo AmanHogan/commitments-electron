@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import DevelopmentCommitmentTwoPage from '../components/dcomm2-page'
 import type { DevelopmentCommitmentTwo } from '@/types/types'
 import { JsonTransferBar } from '@/components/json-transfer-bar'
+import { sanitizeForDb } from '@/lib/import-sanitize'
 
 export default function DevelopmentCommitmentsTwoPage() {
   const [data, setData] = useState<DevelopmentCommitmentTwo[] | null>(null)
@@ -24,12 +25,10 @@ export default function DevelopmentCommitmentsTwoPage() {
   }
 
   async function handleImport(records: unknown[]) {
-    const current = await window.api.dcomm2.getAll() as { id: number }[]
-    for (const rec of current) await window.api.dcomm2.delete(rec.id)
     for (const rec of records) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { id: _id, createdAt: _c, updatedAt: _u, ...payload } = rec as Record<string, unknown>
-      await window.api.dcomm2.create(payload)
+      await window.api.dcomm2.create(sanitizeForDb(payload))
     }
     await reload()
     setImportKey((k) => k + 1)

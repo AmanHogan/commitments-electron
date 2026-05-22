@@ -1,5 +1,5 @@
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import type { DevelopmentCommitmentTwo, CreateDevelopmentCommitmentTwoDTO } from "@/types/types"
 import {
   createDevelopmentCommitmentTwo,
@@ -33,6 +33,19 @@ export default function DevelopmentCommitmentTwoPage({ initialEvents }: Props) {
   const [editingEventId, setEditingEventId] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [sortField, setSortField] = useState<"started" | "finished" | "eventName">("started")
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
+
+  const sortedEvents = useMemo(() => {
+    return [...events].sort((a, b) => {
+      const aVal = sortField === "eventName" ? a.eventName.toLowerCase() : (a[sortField] ?? "")
+      const bVal = sortField === "eventName" ? b.eventName.toLowerCase() : (b[sortField] ?? "")
+      if (aVal === bVal) return 0
+      const order = aVal < bVal ? -1 : 1
+      return sortDirection === "asc" ? order : -order
+    })
+  }, [events, sortField, sortDirection])
+
   function handleEventField(field: keyof CreateDevelopmentCommitmentTwoDTO, val: string | boolean | undefined) {
     setEventForm((prev) => ({ ...prev, [field]: val }))
   }
@@ -102,7 +115,26 @@ export default function DevelopmentCommitmentTwoPage({ initialEvents }: Props) {
         ]}
       />
 
-      <div className="flex justify-end">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium">Sort by:</label>
+          <select
+            value={sortField}
+            onChange={(e) => setSortField(e.target.value as "started" | "finished" | "eventName")}
+            className="rounded border px-2 py-1 text-sm"
+          >
+            <option value="started">Date started</option>
+            <option value="finished">Date finished</option>
+            <option value="eventName">Event name</option>
+          </select>
+          <button
+            type="button"
+            onClick={() => setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"))}
+            className="rounded border px-3 py-1.5 text-sm hover:bg-accent"
+          >
+            {sortDirection === "asc" ? "Ascending" : "Descending"}
+          </button>
+        </div>
         <button
           type="button"
           onClick={() => exportDcomm2ToMarkdown(events)}
@@ -193,7 +225,7 @@ export default function DevelopmentCommitmentTwoPage({ initialEvents }: Props) {
 
       {/* Events list */}
       <ul className="space-y-3">
-        {events.map((event) => (
+        {sortedEvents.map((event) => (
           <li key={event.id}>
             <Card className="shadow-sm">
               <CardContent>

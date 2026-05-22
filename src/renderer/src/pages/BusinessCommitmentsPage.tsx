@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import BusinessCommitmentsComp from '../components/bcomm-page'
 import type { BusinessCommitmentOne } from '@/types/types'
 import { JsonTransferBar } from '@/components/json-transfer-bar'
+import { sanitizeForDb } from '@/lib/import-sanitize'
 
 export default function BusinessCommitmentsPage() {
   const [data, setData] = useState<BusinessCommitmentOne[] | null>(null)
@@ -24,12 +25,10 @@ export default function BusinessCommitmentsPage() {
   }
 
   async function handleImport(records: unknown[]) {
-    const current = await window.api.bcomm1.getAll() as { id: number }[]
-    for (const rec of current) await window.api.bcomm1.delete(rec.id)
     for (const rec of records) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { id: _id, createdAt: _c, ...payload } = rec as Record<string, unknown>
-      await window.api.bcomm1.create(payload)
+      await window.api.bcomm1.create(sanitizeForDb(payload))
     }
     await reload()
     setImportKey((k) => k + 1)

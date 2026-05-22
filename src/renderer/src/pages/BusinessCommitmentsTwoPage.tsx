@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import BusinessCommitmentTwoPage from '../components/bcomm2-page'
 import type { BusinessCommitmentTwo } from '@/types/types'
 import { JsonTransferBar } from '@/components/json-transfer-bar'
+import { sanitizeForDb } from '@/lib/import-sanitize'
 
 export default function BusinessCommitmentsTwoPage() {
   const [data, setData] = useState<BusinessCommitmentTwo[] | null>(null)
@@ -25,17 +26,15 @@ export default function BusinessCommitmentsTwoPage() {
   }
 
   async function handleImport(records: unknown[]) {
-    const current = await window.api.bcomm2.getAll() as { id: number }[]
-    for (const rec of current) await window.api.bcomm2.delete(rec.id)
     for (const rec of records) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { id: _id, createdAt: _c, updatedAt: _u, subEvents, ...payload } = rec as Record<string, unknown>
-      const created = await window.api.bcomm2.create(payload) as { id: number }
+      const created = await window.api.bcomm2.create(sanitizeForDb(payload)) as { id: number }
       if (Array.isArray(subEvents)) {
         for (const se of subEvents) {
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { id: _sid, eventId: _eid, createdAt: _sc, updatedAt: _su, ...sePayload } = se as Record<string, unknown>
-          await window.api.bcomm2.createSubEvent(created.id, sePayload)
+          await window.api.bcomm2.createSubEvent(created.id, sanitizeForDb(sePayload))
         }
       }
     }

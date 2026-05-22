@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type {
   BusinessCommitmentOne,
   BusinessCommitmentOneFormState,
@@ -42,6 +42,18 @@ export default function BusinessCommitmentsComp({ initialCommitments }: Props) {
   const [_loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [sortField, setSortField] = useState<"started" | "dateCompleted" | "workItem">("started")
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
+
+  const sortedCommitments = useMemo(() => {
+    return [...commitments].sort((a, b) => {
+      const aVal = sortField === "workItem" ? (a.workItem ?? "").toLowerCase() : (a[sortField] ?? "")
+      const bVal = sortField === "workItem" ? (b.workItem ?? "").toLowerCase() : (b[sortField] ?? "")
+      if (aVal === bVal) return 0
+      const order = aVal < bVal ? -1 : 1
+      return sortDirection === "asc" ? order : -order
+    })
+  }, [commitments, sortField, sortDirection])
 
   function handleField(field: keyof BusinessCommitmentOneFormState, val: string) {
     setForm((prev) => ({ ...prev, [field]: val }))
@@ -269,8 +281,28 @@ export default function BusinessCommitmentsComp({ initialCommitments }: Props) {
         </form>
       </CardComp>
 
+      <div className="flex items-center gap-2">
+        <label className="text-sm font-medium">Sort by:</label>
+        <select
+          value={sortField}
+          onChange={(e) => setSortField(e.target.value as "started" | "dateCompleted" | "workItem")}
+          className="rounded border px-2 py-1 text-sm"
+        >
+          <option value="started">Date started</option>
+          <option value="dateCompleted">Date completed</option>
+          <option value="workItem">Work item</option>
+        </select>
+        <button
+          type="button"
+          onClick={() => setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"))}
+          className="rounded border px-3 py-1.5 text-sm hover:bg-accent"
+        >
+          {sortDirection === "asc" ? "Ascending" : "Descending"}
+        </button>
+      </div>
+
       <div className="grid gap-4">
-        {commitments.map((c) => (
+        {sortedCommitments.map((c) => (
           <Card key={c.id} className="shadow-sm">
             <CardHeader>
               <CardTitle>{c.workItem}</CardTitle>

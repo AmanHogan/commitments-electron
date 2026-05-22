@@ -252,6 +252,21 @@ function normalizeAll(rows: Record<string, unknown>[]): Record<string, unknown>[
   return rows.map(normalize)
 }
 
+// Sanitize an incoming payload so every boolean becomes 0/1 and every
+// undefined becomes null before anything is passed to better-sqlite3.
+// better-sqlite3's C++ binder only accepts number/string/bigint/Buffer/null —
+// JS booleans are explicitly NOT on that list and throw at runtime.
+function sanitize(p: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(p)) {
+    if (typeof v === 'boolean') out[k] = v ? 1 : 0
+    else if (v === undefined) out[k] = null
+    else out[k] = v
+  }
+  return out
+}
+
+// Keep for compatibility — callers that pass a raw value (not via sanitize)
 function boolInt(v: unknown): number {
   return v ? 1 : 0
 }
@@ -260,8 +275,9 @@ function boolInt(v: unknown): number {
 
 export const bcomm1 = {
   getAll: () => normalizeAll(db.prepare('SELECT * FROM business_commitments_one ORDER BY createdAt DESC').all() as Record<string, unknown>[]),
-  create: (p: Record<string, unknown>) => {
-    const cats = JSON.stringify(p.valueCategories ?? [])
+  create: (p_raw: Record<string, unknown>) => {
+    const p = sanitize(p_raw)
+    const cats = JSON.stringify(Array.isArray(p.valueCategories) ? p.valueCategories : [])
     const r = db.prepare(`
       INSERT INTO business_commitments_one
         (workItem,started,dateCompleted,applicationContext,description,problemOpportunity,
@@ -273,16 +289,17 @@ export const bcomm1 = {
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     `).run(p.workItem,p.started??null,p.dateCompleted??null,p.applicationContext??null,
            p.description??null,p.problemOpportunity??null,p.whoBenefited??null,p.impact??null,
-           cats,boolInt(p.improvedOutcomes),p.improvedOutcomesText??null,
-           boolInt(p.increasedEfficiency),p.increasedEfficiencyText??null,
-           boolInt(p.reducedRiskCost),p.reducedRiskCostText??null,
-           boolInt(p.enhancedCustomerExperience),p.enhancedCustomerExperienceText??null,
-           boolInt(p.enhancedEmployeeExperience),p.enhancedEmployeeExperienceText??null,
+           cats,p.improvedOutcomes??0,p.improvedOutcomesText??null,
+           p.increasedEfficiency??0,p.increasedEfficiencyText??null,
+           p.reducedRiskCost??0,p.reducedRiskCostText??null,
+           p.enhancedCustomerExperience??0,p.enhancedCustomerExperienceText??null,
+           p.enhancedEmployeeExperience??0,p.enhancedEmployeeExperienceText??null,
            p.alignment??null,p.statusNotes??null,p.status??'IN_PROGRESS')
     return normalize(db.prepare('SELECT * FROM business_commitments_one WHERE id=?').get(r.lastInsertRowid) as Record<string, unknown>)
   },
-  update: (id: number, p: Record<string, unknown>) => {
-    const cats = JSON.stringify(p.valueCategories ?? [])
+  update: (id: number, p_raw: Record<string, unknown>) => {
+    const p = sanitize(p_raw)
+    const cats = JSON.stringify(Array.isArray(p.valueCategories) ? p.valueCategories : [])
     db.prepare(`
       UPDATE business_commitments_one SET
         workItem=?,started=?,dateCompleted=?,applicationContext=?,description=?,
@@ -294,11 +311,11 @@ export const bcomm1 = {
       WHERE id=?
     `).run(p.workItem,p.started??null,p.dateCompleted??null,p.applicationContext??null,
            p.description??null,p.problemOpportunity??null,p.whoBenefited??null,p.impact??null,
-           cats,boolInt(p.improvedOutcomes),p.improvedOutcomesText??null,
-           boolInt(p.increasedEfficiency),p.increasedEfficiencyText??null,
-           boolInt(p.reducedRiskCost),p.reducedRiskCostText??null,
-           boolInt(p.enhancedCustomerExperience),p.enhancedCustomerExperienceText??null,
-           boolInt(p.enhancedEmployeeExperience),p.enhancedEmployeeExperienceText??null,
+           cats,p.improvedOutcomes??0,p.improvedOutcomesText??null,
+           p.increasedEfficiency??0,p.increasedEfficiencyText??null,
+           p.reducedRiskCost??0,p.reducedRiskCostText??null,
+           p.enhancedCustomerExperience??0,p.enhancedCustomerExperienceText??null,
+           p.enhancedEmployeeExperience??0,p.enhancedEmployeeExperienceText??null,
            p.alignment??null,p.statusNotes??null,p.status??'IN_PROGRESS',id)
     return normalize(db.prepare('SELECT * FROM business_commitments_one WHERE id=?').get(id) as Record<string, unknown>)
   },
@@ -319,16 +336,18 @@ export const dcomm1 = {
   },
   delete: (id: number) => { db.prepare('DELETE FROM development_commitments_one WHERE id=?').run(id) },
   getModules: (itemId: number) => normalizeAll(db.prepare('SELECT * FROM learning_modules WHERE itemId=? ORDER BY createdAt ASC').all(itemId) as Record<string, unknown>[]),
-  createModule: (itemId: number, p: Record<string, unknown>) => {
+  createModule: (itemId: number, p_raw: Record<string, unknown>) => {
+    const p = sanitize(p_raw)
     const r = db.prepare(`
       INSERT INTO learning_modules (itemId,moduleName,type,hours,dateStarted,dateFinished,finished,required,description)
       VALUES (?,?,?,?,?,?,?,?,?)
-    `).run(itemId,p.moduleName,p.type??null,p.hours??null,p.dateStarted??null,p.dateFinished??null,boolInt(p.finished),boolInt(p.required),p.description??null)
+    `).run(itemId,p.moduleName,p.type??null,p.hours??null,p.dateStarted??null,p.dateFinished??null,p.finished??0,p.required??0,p.description??null)
     return normalize(db.prepare('SELECT * FROM learning_modules WHERE id=?').get(r.lastInsertRowid) as Record<string, unknown>)
   },
-  updateModule: (moduleId: number, p: Record<string, unknown>) => {
+  updateModule: (moduleId: number, p_raw: Record<string, unknown>) => {
+    const p = sanitize(p_raw)
     db.prepare(`UPDATE learning_modules SET moduleName=?,type=?,hours=?,dateStarted=?,dateFinished=?,finished=?,required=?,description=?,updatedAt=datetime('now') WHERE id=?`)
-      .run(p.moduleName,p.type??null,p.hours??null,p.dateStarted??null,p.dateFinished??null,boolInt(p.finished),boolInt(p.required),p.description??null,moduleId)
+      .run(p.moduleName,p.type??null,p.hours??null,p.dateStarted??null,p.dateFinished??null,p.finished??0,p.required??0,p.description??null,moduleId)
     return normalize(db.prepare('SELECT * FROM learning_modules WHERE id=?').get(moduleId) as Record<string, unknown>)
   },
   deleteModule: (moduleId: number) => { db.prepare('DELETE FROM learning_modules WHERE id=?').run(moduleId) }
@@ -338,22 +357,26 @@ export const dcomm1 = {
 
 export const dcomm2 = {
   getAll: () => normalizeAll(db.prepare('SELECT * FROM development_commitments_two ORDER BY createdAt DESC').all() as Record<string, unknown>[]),
-  create: (p: Record<string, unknown>) => {
-    const r = db.prepare('INSERT INTO development_commitments_two (eventName,type,description,started,finished,done,required) VALUES (?,?,?,?,?,?,?)').run(p.eventName,p.type??null,p.description??null,p.started??null,p.finished??null,boolInt(p.done),boolInt(p.required))
+  create: (p_raw: Record<string, unknown>) => {
+    const p = sanitize(p_raw)
+    const r = db.prepare('INSERT INTO development_commitments_two (eventName,type,description,started,finished,done,required) VALUES (?,?,?,?,?,?,?)').run(p.eventName,p.type??null,p.description??null,p.started??null,p.finished??null,p.done??0,p.required??0)
     return normalize(db.prepare('SELECT * FROM development_commitments_two WHERE id=?').get(r.lastInsertRowid) as Record<string, unknown>)
   },
-  update: (id: number, p: Record<string, unknown>) => {
-    db.prepare("UPDATE development_commitments_two SET eventName=?,type=?,description=?,started=?,finished=?,done=?,required=?,updatedAt=datetime('now') WHERE id=?").run(p.eventName,p.type??null,p.description??null,p.started??null,p.finished??null,boolInt(p.done),boolInt(p.required),id)
+  update: (id: number, p_raw: Record<string, unknown>) => {
+    const p = sanitize(p_raw)
+    db.prepare("UPDATE development_commitments_two SET eventName=?,type=?,description=?,started=?,finished=?,done=?,required=?,updatedAt=datetime('now') WHERE id=?").run(p.eventName,p.type??null,p.description??null,p.started??null,p.finished??null,p.done??0,p.required??0,id)
     return normalize(db.prepare('SELECT * FROM development_commitments_two WHERE id=?').get(id) as Record<string, unknown>)
   },
   delete: (id: number) => { db.prepare('DELETE FROM development_commitments_two WHERE id=?').run(id) },
   getSubEvents: (eventId: number) => normalizeAll(db.prepare('SELECT * FROM event_sub_items WHERE eventId=? ORDER BY createdAt ASC').all(eventId) as Record<string, unknown>[]),
-  createSubEvent: (eventId: number, p: Record<string, unknown>) => {
-    const r = db.prepare('INSERT INTO event_sub_items (eventId,subEventName,description,started,finished,done) VALUES (?,?,?,?,?,?)').run(eventId,p.subEventName,p.description??null,p.started??null,p.finished??null,boolInt(p.done))
+  createSubEvent: (eventId: number, p_raw: Record<string, unknown>) => {
+    const p = sanitize(p_raw)
+    const r = db.prepare('INSERT INTO event_sub_items (eventId,subEventName,description,started,finished,done) VALUES (?,?,?,?,?,?)').run(eventId,p.subEventName,p.description??null,p.started??null,p.finished??null,p.done??0)
     return normalize(db.prepare('SELECT * FROM event_sub_items WHERE id=?').get(r.lastInsertRowid) as Record<string, unknown>)
   },
-  updateSubEvent: (subItemId: number, p: Record<string, unknown>) => {
-    db.prepare("UPDATE event_sub_items SET subEventName=?,description=?,started=?,finished=?,done=?,updatedAt=datetime('now') WHERE id=?").run(p.subEventName,p.description??null,p.started??null,p.finished??null,boolInt(p.done),subItemId)
+  updateSubEvent: (subItemId: number, p_raw: Record<string, unknown>) => {
+    const p = sanitize(p_raw)
+    db.prepare("UPDATE event_sub_items SET subEventName=?,description=?,started=?,finished=?,done=?,updatedAt=datetime('now') WHERE id=?").run(p.subEventName,p.description??null,p.started??null,p.finished??null,p.done??0,subItemId)
     return normalize(db.prepare('SELECT * FROM event_sub_items WHERE id=?').get(subItemId) as Record<string, unknown>)
   },
   deleteSubEvent: (subItemId: number) => { db.prepare('DELETE FROM event_sub_items WHERE id=?').run(subItemId) }
@@ -369,23 +392,27 @@ export const bcomm2 = {
       subEvents: normalizeAll(db.prepare('SELECT * FROM sub_events WHERE eventId=? ORDER BY createdAt ASC').all(ev.id as number) as Record<string, unknown>[])
     }))
   },
-  create: (p: Record<string, unknown>) => {
-    const r = db.prepare('INSERT INTO business_commitments_two (eventName,type,done,started,finished,required,description) VALUES (?,?,?,?,?,?,?)').run(p.eventName,p.type??null,boolInt(p.done),p.started??null,p.finished??null,boolInt(p.required),p.description??null)
+  create: (p_raw: Record<string, unknown>) => {
+    const p = sanitize(p_raw)
+    const r = db.prepare('INSERT INTO business_commitments_two (eventName,type,done,started,finished,required,description) VALUES (?,?,?,?,?,?,?)').run(p.eventName,p.type??null,p.done??0,p.started??null,p.finished??null,p.required??0,p.description??null)
     const ev = normalize(db.prepare('SELECT * FROM business_commitments_two WHERE id=?').get(r.lastInsertRowid) as Record<string, unknown>)
     return { ...ev, subEvents: [] }
   },
-  update: (id: number, p: Record<string, unknown>) => {
-    db.prepare("UPDATE business_commitments_two SET eventName=?,type=?,done=?,started=?,finished=?,required=?,description=?,updatedAt=datetime('now') WHERE id=?").run(p.eventName,p.type??null,boolInt(p.done),p.started??null,p.finished??null,boolInt(p.required),p.description??null,id)
+  update: (id: number, p_raw: Record<string, unknown>) => {
+    const p = sanitize(p_raw)
+    db.prepare("UPDATE business_commitments_two SET eventName=?,type=?,done=?,started=?,finished=?,required=?,description=?,updatedAt=datetime('now') WHERE id=?").run(p.eventName,p.type??null,p.done??0,p.started??null,p.finished??null,p.required??0,p.description??null,id)
     return normalize(db.prepare('SELECT * FROM business_commitments_two WHERE id=?').get(id) as Record<string, unknown>)
   },
   delete: (id: number) => { db.prepare('DELETE FROM business_commitments_two WHERE id=?').run(id) },
   getSubEvents: (eventId: number) => normalizeAll(db.prepare('SELECT * FROM sub_events WHERE eventId=? ORDER BY createdAt ASC').all(eventId) as Record<string, unknown>[]),
-  createSubEvent: (eventId: number, p: Record<string, unknown>) => {
-    const r = db.prepare('INSERT INTO sub_events (eventId,subEventName,description,started,finished,done) VALUES (?,?,?,?,?,?)').run(eventId,p.subEventName,p.description??null,p.started??null,p.finished??null,boolInt(p.done))
+  createSubEvent: (eventId: number, p_raw: Record<string, unknown>) => {
+    const p = sanitize(p_raw)
+    const r = db.prepare('INSERT INTO sub_events (eventId,subEventName,description,started,finished,done) VALUES (?,?,?,?,?,?)').run(eventId,p.subEventName,p.description??null,p.started??null,p.finished??null,p.done??0)
     return normalize(db.prepare('SELECT * FROM sub_events WHERE id=?').get(r.lastInsertRowid) as Record<string, unknown>)
   },
-  updateSubEvent: (subEventId: number, p: Record<string, unknown>) => {
-    db.prepare("UPDATE sub_events SET subEventName=?,description=?,started=?,finished=?,done=?,updatedAt=datetime('now') WHERE id=?").run(p.subEventName,p.description??null,p.started??null,p.finished??null,boolInt(p.done),subEventId)
+  updateSubEvent: (subEventId: number, p_raw: Record<string, unknown>) => {
+    const p = sanitize(p_raw)
+    db.prepare("UPDATE sub_events SET subEventName=?,description=?,started=?,finished=?,done=?,updatedAt=datetime('now') WHERE id=?").run(p.subEventName,p.description??null,p.started??null,p.finished??null,p.done??0,subEventId)
     return normalize(db.prepare('SELECT * FROM sub_events WHERE id=?').get(subEventId) as Record<string, unknown>)
   },
   deleteSubEvent: (subEventId: number) => { db.prepare('DELETE FROM sub_events WHERE id=?').run(subEventId) }
@@ -395,7 +422,8 @@ export const bcomm2 = {
 
 export const oneOnOne = {
   getAll: () => normalizeAll(db.prepare('SELECT * FROM one_on_ones ORDER BY documentDate DESC').all() as Record<string, unknown>[]),
-  create: (p: Record<string, unknown>) => {
+  create: (p_raw: Record<string, unknown>) => {
+    const p = sanitize(p_raw)
     const r = db.prepare(`
       INSERT INTO one_on_ones (documentDate,businessPartnerWork,workloadConcerns,tdpContributions,
         utilizationPercentage,trainingSkills,pursuingDegrees,compliancePercentage,ehsTrainingPercentage,
@@ -405,12 +433,13 @@ export const oneOnOne = {
     `).run(p.documentDate,p.businessPartnerWork??null,p.workloadConcerns??null,p.tdpContributions??null,
            p.utilizationPercentage??null,p.trainingSkills??null,p.pursuingDegrees??null,
            p.compliancePercentage??null,p.ehsTrainingPercentage??null,p.growthHubProgress??null,
-           boolInt(p.successPathwaysUpdated),p.contingencyTrainingPercentage??null,p.innovationEvents??null,
+           p.successPathwaysUpdated??0,p.contingencyTrainingPercentage??null,p.innovationEvents??null,
            p.accomplishments??null,p.challenges??null,p.goals??null,p.questions??null,
            p.receivingSupport??null,p.additionalItems??null,p.outOfOfficePlans??null)
     return normalize(db.prepare('SELECT * FROM one_on_ones WHERE id=?').get(r.lastInsertRowid) as Record<string, unknown>)
   },
-  update: (id: number, p: Record<string, unknown>) => {
+  update: (id: number, p_raw: Record<string, unknown>) => {
+    const p = sanitize(p_raw)
     db.prepare(`
       UPDATE one_on_ones SET documentDate=?,businessPartnerWork=?,workloadConcerns=?,tdpContributions=?,
         utilizationPercentage=?,trainingSkills=?,pursuingDegrees=?,compliancePercentage=?,ehsTrainingPercentage=?,
@@ -421,7 +450,7 @@ export const oneOnOne = {
     `).run(p.documentDate,p.businessPartnerWork??null,p.workloadConcerns??null,p.tdpContributions??null,
            p.utilizationPercentage??null,p.trainingSkills??null,p.pursuingDegrees??null,
            p.compliancePercentage??null,p.ehsTrainingPercentage??null,p.growthHubProgress??null,
-           boolInt(p.successPathwaysUpdated),p.contingencyTrainingPercentage??null,p.innovationEvents??null,
+           p.successPathwaysUpdated??0,p.contingencyTrainingPercentage??null,p.innovationEvents??null,
            p.accomplishments??null,p.challenges??null,p.goals??null,p.questions??null,
            p.receivingSupport??null,p.additionalItems??null,p.outOfOfficePlans??null,id)
     return normalize(db.prepare('SELECT * FROM one_on_ones WHERE id=?').get(id) as Record<string, unknown>)
@@ -433,12 +462,14 @@ export const oneOnOne = {
 
 export const actionItems = {
   getAll: () => normalizeAll(db.prepare('SELECT * FROM action_items ORDER BY createdAt DESC').all() as Record<string, unknown>[]),
-  create: (p: Record<string, unknown>) => {
-    const r = db.prepare('INSERT INTO action_items (name,description,criticality,dateStarted,dateFinished,completed) VALUES (?,?,?,?,?,?)').run(p.name,p.description??null,p.criticality??null,p.dateStarted??null,p.dateFinished??null,boolInt(p.completed))
+  create: (p_raw: Record<string, unknown>) => {
+    const p = sanitize(p_raw)
+    const r = db.prepare('INSERT INTO action_items (name,description,criticality,dateStarted,dateFinished,completed) VALUES (?,?,?,?,?,?)').run(p.name,p.description??null,p.criticality??null,p.dateStarted??null,p.dateFinished??null,p.completed??0)
     return normalize(db.prepare('SELECT * FROM action_items WHERE id=?').get(r.lastInsertRowid) as Record<string, unknown>)
   },
-  update: (id: number, p: Record<string, unknown>) => {
-    db.prepare("UPDATE action_items SET name=?,description=?,criticality=?,dateStarted=?,dateFinished=?,completed=?,updatedAt=datetime('now') WHERE id=?").run(p.name,p.description??null,p.criticality??null,p.dateStarted??null,p.dateFinished??null,boolInt(p.completed),id)
+  update: (id: number, p_raw: Record<string, unknown>) => {
+    const p = sanitize(p_raw)
+    db.prepare("UPDATE action_items SET name=?,description=?,criticality=?,dateStarted=?,dateFinished=?,completed=?,updatedAt=datetime('now') WHERE id=?").run(p.name,p.description??null,p.criticality??null,p.dateStarted??null,p.dateFinished??null,p.completed??0,id)
     return normalize(db.prepare('SELECT * FROM action_items WHERE id=?').get(id) as Record<string, unknown>)
   },
   delete: (id: number) => { db.prepare('DELETE FROM action_items WHERE id=?').run(id) }

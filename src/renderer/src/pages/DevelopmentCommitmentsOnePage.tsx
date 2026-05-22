@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import DevelopmentCommitmentOnePage from '../components/dcomm1-page'
 import type { DevelopmentCommitmentOne } from '@/types/types'
 import { JsonTransferBar } from '@/components/json-transfer-bar'
+import { sanitizeForDb } from '@/lib/import-sanitize'
 
 export default function DevelopmentCommitmentsOnePage() {
   const [data, setData] = useState<DevelopmentCommitmentOne[] | null>(null)
@@ -31,17 +32,15 @@ export default function DevelopmentCommitmentsOnePage() {
   }
 
   async function handleImport(records: unknown[]) {
-    const current = await window.api.dcomm1.getAll() as { id: number }[]
-    for (const rec of current) await window.api.dcomm1.delete(rec.id)
     for (const rec of records) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { id: _id, createdAt: _c, updatedAt: _u, modules, ...payload } = rec as Record<string, unknown>
-      const created = await window.api.dcomm1.create(payload) as { id: number }
+      const created = await window.api.dcomm1.create(sanitizeForDb(payload)) as { id: number }
       if (Array.isArray(modules)) {
         for (const mod of modules) {
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { id: _mid, itemId: _iid, createdAt: _mc, updatedAt: _mu, ...modPayload } = mod as Record<string, unknown>
-          await window.api.dcomm1.createModule(created.id, modPayload)
+          await window.api.dcomm1.createModule(created.id, sanitizeForDb(modPayload))
         }
       }
     }
