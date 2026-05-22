@@ -19,6 +19,8 @@ import FlashcardStarredPage from './pages/FlashcardStarredPage'
 import FlashcardSkillsPage from './pages/FlashcardSkillsPage'
 import NotesPage from './pages/NotesPage'
 import NoteGroupPage from './pages/NoteGroupPage'
+import ReminderToast from './components/ReminderToast'
+import StartupBriefing from './components/StartupBriefing'
 
 function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -34,6 +36,8 @@ function Layout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </SidebarInset>
+      <StartupBriefing />
+      <ReminderToast />
     </SidebarProvider>
   )
 }

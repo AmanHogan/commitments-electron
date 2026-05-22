@@ -104,6 +104,10 @@ interface DbApi {
   }
   notifications: {
     checkNow: () => Promise<void>
+    onReminder: (callback: (data: unknown) => void) => () => void
+    onBriefing: (callback: (items: unknown[]) => void) => () => void
+    snooze: (id: number, minutes: number) => Promise<void>
+    dismiss: (id: number) => Promise<void>
   }
   noteGroups: {
     getAll: () => Promise<unknown[]>

@@ -104,7 +104,19 @@ const api = {
     readJson: () => ipcRenderer.invoke('data:readJson')
   },
   notifications: {
-    checkNow: () => ipcRenderer.invoke('notifications:checkNow')
+    checkNow: () => ipcRenderer.invoke('notifications:checkNow'),
+    onReminder: (callback: (data: unknown) => void) => {
+      const handler = (_: Electron.IpcRendererEvent, data: unknown) => callback(data)
+      ipcRenderer.on('reminder:show', handler)
+      return () => ipcRenderer.off('reminder:show', handler)
+    },
+    onBriefing: (callback: (items: unknown[]) => void) => {
+      const handler = (_: Electron.IpcRendererEvent, items: unknown[]) => callback(items)
+      ipcRenderer.on('briefing:show', handler)
+      return () => ipcRenderer.off('briefing:show', handler)
+    },
+    snooze: (id: number, minutes: number) => ipcRenderer.invoke('reminder:snooze', id, minutes),
+    dismiss: (id: number) => ipcRenderer.invoke('reminder:dismiss', id),
   },
   noteGroups: {
     getAll: () => ipcRenderer.invoke('noteGroups:getAll'),

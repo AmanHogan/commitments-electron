@@ -229,6 +229,7 @@ db.exec(`
 try { db.exec("ALTER TABLE skills ADD COLUMN tags TEXT DEFAULT '[]'") } catch { /* already exists */ }
 try { db.exec("ALTER TABLE action_items ADD COLUMN dueDate TEXT") } catch { /* already exists */ }
 try { db.exec("ALTER TABLE action_items ADD COLUMN dueTime TEXT") } catch { /* already exists */ }
+try { db.exec("ALTER TABLE action_items ADD COLUMN reminderSnoozedUntil TEXT") } catch { /* already exists */ }
 
 const BOOL_COLS = new Set([
   'improvedOutcomes', 'increasedEfficiency', 'reducedRiskCost',
@@ -480,6 +481,26 @@ export const actionItems = {
   getOverdue: () => {
     const today = new Date().toISOString().slice(0, 10)
     return normalizeAll(db.prepare("SELECT * FROM action_items WHERE completed=0 AND dueDate IS NOT NULL AND dueDate <= ?").all(today) as Record<string, unknown>[])
+  },
+  getDueItems: () => {
+    // Returns all uncompleted items that have a dueDate (today or future within 1 hour)
+    const soon = new Date(Date.now() + 65 * 60 * 1000).toISOString().slice(0, 10)
+    return normalizeAll(db.prepare("SELECT * FROM action_items WHERE completed=0 AND dueDate IS NOT NULL AND dueDate <= ?").all(soon) as Record<string, unknown>[])
+  },
+  getUpcoming: () => {
+    // All uncompleted items with a dueDate, sorted soonest first — used for startup briefing
+    return normalizeAll(db.prepare(
+      "SELECT * FROM action_items WHERE completed=0 AND dueDate IS NOT NULL ORDER BY dueDate ASC, dueTime ASC"
+    ).all() as Record<string, unknown>[])
+  },
+  snooze: (id: number, until: string) => {
+    db.prepare("UPDATE action_items SET reminderSnoozedUntil=? WHERE id=?").run(until, id)
+  },
+  dismissReminder: (id: number) => {
+    // Snooze until end of today so it stops firing, but resets tomorrow
+    const endOfDay = new Date()
+    endOfDay.setHours(23, 59, 59, 999)
+    db.prepare("UPDATE action_items SET reminderSnoozedUntil=? WHERE id=?").run(endOfDay.toISOString(), id)
   }
 }
 
