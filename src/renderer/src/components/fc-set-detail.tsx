@@ -263,11 +263,19 @@ export function SetDetailClient({ set: initialSet, skills: initialSkills }: Prop
     ? cards.filter(c => studyFilter.includes(c.id))
     : studyGroup ? cards.filter(c => c.groupName === studyGroup) : cards
 
+  // True when there's study progress worth resuming
+  const hasActiveSession = knownIds.size > 0 || stillIds.size > 0 || studyIdx > 0
+
   function startStudy(group?: string) {
     setStudyGroup(group ?? null); setStudyFilter(null); setStudyIdx(0)
     setFlipped(false); setStudyMode(true); setKnownIds(new Set())
     setStillIds(new Set()); setShowSummary(false)
     window.api.fcSets.study(set.id).catch(() => {})
+  }
+
+  function resumeStudy() {
+    // Re-enter study mode without touching any progress state
+    setStudyMode(true)
   }
 
   function nextCard() { setFlipped(false); setStudyIdx(i => Math.min(i + 1, studyCards.length - 1)) }
@@ -603,7 +611,20 @@ export function SetDetailClient({ set: initialSet, skills: initialSkills }: Prop
           <span className="text-sm text-muted-foreground">Add cards below to start studying.</span>
         ) : (
           <>
-            <Button size="sm" onClick={() => startStudy()}>Study all {cards.length} cards</Button>
+            {hasActiveSession && (
+              <>
+                <Button size="sm" onClick={resumeStudy}>
+                  ▶ Resume
+                  <span className="ml-1.5 text-xs opacity-75">
+                    ({knownIds.size}✓ {stillIds.size}✗)
+                  </span>
+                </Button>
+                <span className="text-muted-foreground text-xs">·</span>
+              </>
+            )}
+            <Button size="sm" variant={hasActiveSession ? "outline" : "default"} onClick={() => startStudy()}>
+              {hasActiveSession ? "New session" : `Study all ${cards.length} cards`}
+            </Button>
             {groups.map(g => (
               <Button key={g} variant="outline" size="sm" onClick={() => startStudy(g)}>
                 {g} <span className="ml-1 text-muted-foreground">({cards.filter(c => c.groupName === g).length})</span>
