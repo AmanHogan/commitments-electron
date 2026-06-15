@@ -17,7 +17,14 @@
       "Bash(sed -i '' '/^$/{ 1d; }' /Users/amanhogan/dev/commitments-electron/src/renderer/src/components/import-cards-panel.tsx)",
       "Bash(node -e \"console.log\\(require\\('./node_modules/electron/package.json'\\).version\\)\")",
       "Bash(npx tsc *)",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(git mv *)",
+      "Bash(git add *)",
+      "Bash(git checkout *)",
+      "Bash(git commit -q -m ' *)",
+      "Bash(gh auth *)",
+      "Bash(mkdir -p /Users/amanhogan/dev/hello-world)",
+      "Bash(kubectl get *)"
     ]
   }
 }

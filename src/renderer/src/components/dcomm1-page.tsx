@@ -240,7 +240,7 @@ export default function DevelopmentCommitmentOnePage({ initialItems }: Props) {
           </button>
           <button
             type="button"
-            onClick={() => exportDcomm1ToMarkdown(items, modulesByItem)}
+            onClick={() => exportDcomm1ToMarkdown(items)}
             className="rounded border px-3 py-1.5 text-sm hover:bg-accent"
           >
             Export Markdown

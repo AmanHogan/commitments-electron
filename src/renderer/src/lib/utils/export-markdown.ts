@@ -2,11 +2,11 @@ import type {
   BusinessCommitmentOne,
   BusinessCommitmentTwo,
   DevelopmentCommitmentOne,
-  LearningModule,
   DevelopmentCommitmentTwo,
   ActionItem,
   Skill,
 } from "@/types/types"
+import { getModulesForItem, getDcomm2SubEvents } from "@/lib/actions"
 
 function downloadMarkdown(content: string, filename: string): void {
   const blob = new Blob([content], { type: "text/markdown;charset=utf-8" })
@@ -89,16 +89,20 @@ export function exportBcomm2ToMarkdown(events: BusinessCommitmentTwo[]): void {
 
 // ─── Development Commitments 1 ───────────────────────────────────────────────
 
-export function exportDcomm1ToMarkdown(
-  items: DevelopmentCommitmentOne[],
-  modulesByItem: Record<number, LearningModule[]>
-): void {
+export async function exportDcomm1ToMarkdown(items: DevelopmentCommitmentOne[]): Promise<void> {
   const lines: string[] = [`# Dev Commitments 1 — Learning Items\n\nGenerated: ${stamp()}\n\n---\n`]
+
+  // Fetch every item's modules fresh so the export always contains all nested
+  // data, regardless of what the UI has lazily loaded into state.
+  const moduleLists = await Promise.all(
+    items.map((item) => (item.id != null ? getModulesForItem(item.id) : Promise.resolve([])))
+  )
 
   items.forEach((item, i) => {
     lines.push(`## ${i + 1}. ${item.itemName ?? "(untitled)"}\n`)
+    lines.push(row("Item Date", item.itemDate))
 
-    const modules = item.id != null ? modulesByItem[item.id] : undefined
+    const modules = moduleLists[i]
     if (modules && modules.length > 0) {
       lines.push("### Modules\n")
       modules.forEach((m, j) => {
@@ -121,8 +125,13 @@ export function exportDcomm1ToMarkdown(
 
 // ─── Development Commitments 2 ───────────────────────────────────────────────
 
-export function exportDcomm2ToMarkdown(events: DevelopmentCommitmentTwo[]): void {
+export async function exportDcomm2ToMarkdown(events: DevelopmentCommitmentTwo[]): Promise<void> {
   const lines: string[] = [`# Dev Commitments 2 — Innovation Events\n\nGenerated: ${stamp()}\n\n---\n`]
+
+  // Fetch every event's sub-events fresh so all nested items are included.
+  const subEventLists = await Promise.all(
+    events.map((ev) => (ev.id != null ? getDcomm2SubEvents(ev.id) : Promise.resolve([])))
+  )
 
   events.forEach((ev, i) => {
     lines.push(`## ${i + 1}. ${ev.eventName ?? "(untitled)"}\n`)
@@ -132,6 +141,19 @@ export function exportDcomm2ToMarkdown(events: DevelopmentCommitmentTwo[]): void
     lines.push(row("Date Finished", ev.finished))
     lines.push(row("Done", ev.done))
     lines.push(row("Required", ev.required))
+
+    const subEvents = subEventLists[i]
+    if (subEvents && subEvents.length > 0) {
+      lines.push("\n### Sub-items\n")
+      subEvents.forEach((s, j) => {
+        lines.push(`#### ${j + 1}. ${s.subEventName ?? "(untitled)"}\n`)
+        lines.push(row("Description", s.description))
+        lines.push(row("Date Started", s.started))
+        lines.push(row("Date Finished", s.finished))
+        lines.push(row("Done", s.done))
+        lines.push("\n")
+      })
+    }
     lines.push("\n---\n")
   })
 
