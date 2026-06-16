@@ -96,6 +96,15 @@ export function exportSingleBcomm1ToMarkdown(c: BusinessCommitmentOne): void {
   downloadMarkdown(lines.join(""), `business-commitment-${slug(c.workItem)}.md`)
 }
 
+// One click → each commitment downloads as its own separate markdown file.
+export async function exportEachBcomm1ToMarkdown(commitments: BusinessCommitmentOne[]): Promise<void> {
+  for (const c of commitments) {
+    exportSingleBcomm1ToMarkdown(c)
+    // Stagger downloads slightly so the browser doesn't drop/merge them.
+    await new Promise((resolve) => setTimeout(resolve, 150))
+  }
+}
+
 // ─── Business Commitments 2 ──────────────────────────────────────────────────
 
 export function exportBcomm2ToMarkdown(events: BusinessCommitmentTwo[]): void {
