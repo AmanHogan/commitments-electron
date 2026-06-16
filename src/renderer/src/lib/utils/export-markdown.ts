@@ -28,44 +28,72 @@ function row(label: string, value: string | number | boolean | null | undefined)
   return `- **${label}:** ${display}\n`
 }
 
+function slug(value: string | undefined): string {
+  return (value ?? "untitled")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "untitled"
+}
+
 // ─── Business Commitments 1 ──────────────────────────────────────────────────
+
+// Renders every field of a single business commitment (shared by the bulk and
+// the one-by-one exports so they always stay in sync).
+function bcomm1Fields(c: BusinessCommitmentOne): string {
+  const lines: string[] = []
+  lines.push(row("Application Context", c.applicationContext))
+  lines.push(row("Date Started", c.started))
+  lines.push(row("Date Completed", c.dateCompleted))
+  lines.push(row("Description", c.description))
+  lines.push(row("Problem / Opportunity", c.problemOpportunity))
+  lines.push(row("Who Benefited", c.whoBenefited))
+  lines.push(row("Impact", c.impact))
+  lines.push(row("Alignment", c.alignment))
+  lines.push(row("Status Notes", c.statusNotes))
+
+  if (c.valueCategories && c.valueCategories.length > 0) {
+    lines.push(row("Value Categories", c.valueCategories.join(", ")))
+  }
+
+  const valueEntries: { label: string; value: string | undefined }[] = [
+    { label: "Improved outcomes", value: c.improvedOutcomes ? c.improvedOutcomesText : undefined },
+    { label: "Increased efficiency", value: c.increasedEfficiency ? c.increasedEfficiencyText : undefined },
+    { label: "Reduced risk/cost", value: c.reducedRiskCost ? c.reducedRiskCostText : undefined },
+    {
+      label: "Enhanced customer experience",
+      value: c.enhancedCustomerExperience ? c.enhancedCustomerExperienceText : undefined,
+    },
+    {
+      label: "Enhanced employee experience",
+      value: c.enhancedEmployeeExperience ? c.enhancedEmployeeExperienceText : undefined,
+    },
+  ].filter((e) => e.value)
+  if (valueEntries.length > 0) {
+    lines.push("- **Value Entries:**\n")
+    valueEntries.forEach((ve) => lines.push(`  - ${ve.label}: ${ve.value}\n`))
+  }
+  return lines.join("")
+}
 
 export function exportBcomm1ToMarkdown(commitments: BusinessCommitmentOne[]): void {
   const lines: string[] = [`# Business Commitments\n\nGenerated: ${stamp()}\n\n---\n`]
 
   commitments.forEach((c, i) => {
     lines.push(`## ${i + 1}. ${c.workItem ?? "(untitled)"}\n`)
-    lines.push(row("Application Context", c.applicationContext))
-    lines.push(row("Date Started", c.started))
-    lines.push(row("Date Completed", c.dateCompleted))
-    lines.push(row("Description", c.description))
-    lines.push(row("Problem / Opportunity", c.problemOpportunity))
-    lines.push(row("Who Benefited", c.whoBenefited))
-    lines.push(row("Impact", c.impact))
-    lines.push(row("Alignment", c.alignment))
-    lines.push(row("Status Notes", c.statusNotes))
-
-    const valueEntries: { label: string; value: string | undefined }[] = [
-      { label: "Improved outcomes", value: c.improvedOutcomes ? c.improvedOutcomesText : undefined },
-      { label: "Increased efficiency", value: c.increasedEfficiency ? c.increasedEfficiencyText : undefined },
-      { label: "Reduced risk/cost", value: c.reducedRiskCost ? c.reducedRiskCostText : undefined },
-      {
-        label: "Enhanced customer experience",
-        value: c.enhancedCustomerExperience ? c.enhancedCustomerExperienceText : undefined,
-      },
-      {
-        label: "Enhanced employee experience",
-        value: c.enhancedEmployeeExperience ? c.enhancedEmployeeExperienceText : undefined,
-      },
-    ].filter((e) => e.value)
-    if (valueEntries.length > 0) {
-      lines.push("- **Value Entries:**\n")
-      valueEntries.forEach((ve) => lines.push(`  - ${ve.label}: ${ve.value}\n`))
-    }
+    lines.push(bcomm1Fields(c))
     lines.push("\n---\n")
   })
 
   downloadMarkdown(lines.join(""), "business-commitments.md")
+}
+
+// Export a single business commitment to its own markdown file.
+export function exportSingleBcomm1ToMarkdown(c: BusinessCommitmentOne): void {
+  const lines: string[] = [`# ${c.workItem ?? "(untitled)"}\n\nGenerated: ${stamp()}\n\n---\n`]
+  lines.push(bcomm1Fields(c))
+  lines.push("\n")
+  downloadMarkdown(lines.join(""), `business-commitment-${slug(c.workItem)}.md`)
 }
 
 // ─── Business Commitments 2 ──────────────────────────────────────────────────

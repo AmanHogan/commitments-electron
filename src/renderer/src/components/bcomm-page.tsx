@@ -16,7 +16,7 @@ import { Textarea } from './ui/textarea'
 import { Label } from './ui/label'
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from './ui/card'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './ui/select'
-import { exportBcomm1ToMarkdown } from '@/lib/utils/export-markdown'
+import { exportBcomm1ToMarkdown, exportSingleBcomm1ToMarkdown } from '@/lib/utils/export-markdown'
 import { exportBcomm1ToPdf } from '@/lib/utils/export-pdf'
 import DocComp from './ui/doc-comp'
 import CardComp from './ui/card-comp'
@@ -322,6 +322,12 @@ export default function BusinessCommitmentsComp({ initialCommitments }: Props) {
 
             <CardFooter>
               <div className="ml-auto flex gap-2">
+                <button
+                  onClick={() => exportSingleBcomm1ToMarkdown(c)}
+                  className="rounded border px-3 py-1 text-sm hover:bg-accent"
+                >
+                  Export Markdown
+                </button>
                 <button
                   onClick={() => startEdit(c)}
                   className="rounded border px-3 py-1 text-sm hover:bg-accent"
