@@ -200,8 +200,20 @@ function QuickAccomplishmentsPanel({
   const [editDate, setEditDate] = useState('')
   const [editStatus, setEditStatus] = useState<QAStatus>('Completed')
   const [saving, setSaving] = useState(false)
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
 
-  const tabItems = accomplishments.filter((q) => q.category === activeCategory)
+  const tabItems = accomplishments
+    .filter((q) => q.category === activeCategory)
+    .slice()
+    .sort((a, b) => {
+      // Items without a date sort to the bottom regardless of direction.
+      const ad = a.dateFinished || ''
+      const bd = b.dateFinished || ''
+      if (!ad && !bd) return 0
+      if (!ad) return 1
+      if (!bd) return -1
+      return sortDir === 'asc' ? ad.localeCompare(bd) : bd.localeCompare(ad)
+    })
 
   function startEdit(qa: QuickAccomplishment) {
     setEditingId(qa.id)
@@ -236,10 +248,20 @@ function QuickAccomplishmentsPanel({
 
   return (
     <div className="flex flex-col gap-0">
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex items-end justify-between gap-3">
         <div>
           <p className="text-sm font-semibold">Quick Accomplishments</p>
           <p className="text-xs text-muted-foreground">One-sentence accomplishments per commitment — like Workday quick accomplishments. Persist across all reviews.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-muted-foreground">Sort by date</span>
+          <Select value={sortDir} onValueChange={(v) => setSortDir(v as 'desc' | 'asc')}>
+            <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="desc">Newest first</SelectItem>
+              <SelectItem value="asc">Oldest first</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
