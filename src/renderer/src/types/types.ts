@@ -59,7 +59,11 @@ export type DevelopmentCommitmentOne = {
   description?: string
   itemDate?: string
   done?: boolean
+  hours?: number
   modules?: LearningModule[]
+  // Read-only aggregates returned by the backend
+  moduleCount?: number
+  moduleHours?: number
   createdAt?: string
   updatedAt?: string
 }
@@ -81,7 +85,7 @@ export type LearningModule = {
 
 export type CreateDevelopmentCommitmentOneDTO = Omit<
   DevelopmentCommitmentOne,
-  "id" | "modules" | "createdAt" | "updatedAt"
+  "id" | "modules" | "moduleCount" | "moduleHours" | "createdAt" | "updatedAt"
 >
 export type UpdateDevelopmentCommitmentOneDTO = Partial<CreateDevelopmentCommitmentOneDTO>
 export type CreateLearningModuleDTO = Omit<LearningModule, "id" | "itemId" | "createdAt" | "updatedAt">
@@ -92,6 +96,7 @@ export const emptyDevelopmentCommitmentOneForm = (): CreateDevelopmentCommitment
   description: "",
   itemDate: "",
   done: false,
+  hours: undefined,
 })
 
 export const emptyLearningModuleForm = (): CreateLearningModuleDTO => ({

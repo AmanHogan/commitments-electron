@@ -292,6 +292,7 @@ try { db.exec("ALTER TABLE development_commitments_two ADD COLUMN applicationCon
 try { db.exec("ALTER TABLE development_commitments_two ADD COLUMN impact TEXT") } catch { /* already exists */ }
 try { db.exec("ALTER TABLE development_commitments_one ADD COLUMN description TEXT") } catch { /* already exists */ }
 try { db.exec("ALTER TABLE development_commitments_one ADD COLUMN done INTEGER DEFAULT 0") } catch { /* already exists */ }
+try { db.exec("ALTER TABLE development_commitments_one ADD COLUMN hours REAL") } catch { /* already exists */ }
 
 // NOTE: 'finished' is intentionally NOT a global boolean column. In
 // learning_modules it is a boolean flag, but in development_commitments_two,
@@ -398,15 +399,24 @@ export const bcomm1 = {
 
 // ─── Development Commitments One ─────────────────────────────────────────────
 
+// Selects a learning item plus aggregates over its modules so the table can
+// show module count + summed hours without separately loading every module.
+const DCOMM1_SELECT = `
+  SELECT d.*,
+    (SELECT COUNT(*) FROM learning_modules m WHERE m.itemId = d.id) AS moduleCount,
+    (SELECT COALESCE(SUM(m.hours), 0) FROM learning_modules m WHERE m.itemId = d.id) AS moduleHours
+  FROM development_commitments_one d
+`
+
 export const dcomm1 = {
-  getAll: () => normalizeAll(db.prepare('SELECT * FROM development_commitments_one ORDER BY createdAt DESC').all() as Record<string, unknown>[]),
+  getAll: () => normalizeAll(db.prepare(`${DCOMM1_SELECT} ORDER BY d.createdAt DESC`).all() as Record<string, unknown>[]),
   create: (p: Record<string, unknown>) => {
-    const r = db.prepare('INSERT INTO development_commitments_one (itemName,description,itemDate,done) VALUES (?,?,?,?)').run(p.itemName, p.description??null, p.itemDate??null, boolInt(p.done))
-    return normalize(db.prepare('SELECT * FROM development_commitments_one WHERE id=?').get(r.lastInsertRowid) as Record<string, unknown>)
+    const r = db.prepare('INSERT INTO development_commitments_one (itemName,description,itemDate,done,hours) VALUES (?,?,?,?,?)').run(p.itemName, p.description??null, p.itemDate??null, boolInt(p.done), p.hours??null)
+    return normalize(db.prepare(`${DCOMM1_SELECT} WHERE d.id=?`).get(r.lastInsertRowid) as Record<string, unknown>)
   },
   update: (id: number, p: Record<string, unknown>) => {
-    db.prepare("UPDATE development_commitments_one SET itemName=?,description=?,itemDate=?,done=?,updatedAt=datetime('now') WHERE id=?").run(p.itemName, p.description??null, p.itemDate??null, boolInt(p.done), id)
-    return normalize(db.prepare('SELECT * FROM development_commitments_one WHERE id=?').get(id) as Record<string, unknown>)
+    db.prepare("UPDATE development_commitments_one SET itemName=?,description=?,itemDate=?,done=?,hours=?,updatedAt=datetime('now') WHERE id=?").run(p.itemName, p.description??null, p.itemDate??null, boolInt(p.done), p.hours??null, id)
+    return normalize(db.prepare(`${DCOMM1_SELECT} WHERE d.id=?`).get(id) as Record<string, unknown>)
   },
   delete: (id: number) => { db.prepare('DELETE FROM development_commitments_one WHERE id=?').run(id) },
   getModules: (itemId: number) => normalizeAll(db.prepare('SELECT * FROM learning_modules WHERE itemId=? ORDER BY createdAt ASC').all(itemId) as Record<string, unknown>[], MODULE_BOOL_COLS),
