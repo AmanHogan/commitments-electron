@@ -4,7 +4,7 @@ import { pathToFileURL } from 'url'
 import fs from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import { bcomm1, bcomm2, dcomm1, dcomm2, oneOnOne, actionItems, skills, fcSets, fcCards, fcSkills, imageFiles, resumeFiles, noteGroups, notes, progressions } from './database'
+import { bcomm1, bcomm2, dcomm1, dcomm2, oneOnOne, actionItems, skills, fcSets, fcCards, fcSkills, imageFiles, resumeFiles, noteGroups, notes, progressions, reviews, midyear, endofyear, quickAccomplishments } from './database'
 
 // Register before app.whenReady
 protocol.registerSchemesAsPrivileged([
@@ -226,6 +226,24 @@ app.whenReady().then(() => {
   ipcMain.handle('progressions:create', (_, payload) => progressions.create(payload))
   ipcMain.handle('progressions:update', (_, id, payload) => progressions.update(id, payload))
   ipcMain.handle('progressions:delete', (_, id) => progressions.delete(id))
+
+  ipcMain.handle('reviews:getAll', () => reviews.getAll())
+  ipcMain.handle('reviews:upsert', (_, type, category, selfAssessment, rating) => reviews.upsert(type, category, selfAssessment, rating))
+
+  ipcMain.handle('midyear:getAll', () => midyear.getAll())
+  ipcMain.handle('midyear:create', (_, payload) => midyear.create(payload))
+  ipcMain.handle('midyear:update', (_, id, payload) => midyear.update(id, payload))
+  ipcMain.handle('midyear:delete', (_, id) => midyear.delete(id))
+
+  ipcMain.handle('endofyear:getAll', () => endofyear.getAll())
+  ipcMain.handle('endofyear:create', (_, payload) => endofyear.create(payload))
+  ipcMain.handle('endofyear:update', (_, id, payload) => endofyear.update(id, payload))
+  ipcMain.handle('endofyear:delete', (_, id) => endofyear.delete(id))
+
+  ipcMain.handle('quickAccomplishments:getAll', () => quickAccomplishments.getAll())
+  ipcMain.handle('quickAccomplishments:create', (_, payload) => quickAccomplishments.create(payload))
+  ipcMain.handle('quickAccomplishments:update', (_, id, payload) => quickAccomplishments.update(id, payload))
+  ipcMain.handle('quickAccomplishments:delete', (_, id) => quickAccomplishments.delete(id))
 
   // ─── Skills ───────────────────────────────────────────────────────────────────
   ipcMain.handle('skills:getAll', () => skills.getAll())

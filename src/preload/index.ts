@@ -105,6 +105,29 @@ const api = {
     update: (id: number, payload: unknown) => ipcRenderer.invoke('progressions:update', id, payload),
     delete: (id: number) => ipcRenderer.invoke('progressions:delete', id),
   },
+  reviews: {
+    getAll: () => ipcRenderer.invoke('reviews:getAll'),
+    upsert: (type: string, category: string, selfAssessment: string, rating: number) =>
+      ipcRenderer.invoke('reviews:upsert', type, category, selfAssessment, rating),
+  },
+  midyear: {
+    getAll: () => ipcRenderer.invoke('midyear:getAll'),
+    create: (payload: unknown) => ipcRenderer.invoke('midyear:create', payload),
+    update: (id: number, payload: unknown) => ipcRenderer.invoke('midyear:update', id, payload),
+    delete: (id: number) => ipcRenderer.invoke('midyear:delete', id),
+  },
+  endofyear: {
+    getAll: () => ipcRenderer.invoke('endofyear:getAll'),
+    create: (payload: unknown) => ipcRenderer.invoke('endofyear:create', payload),
+    update: (id: number, payload: unknown) => ipcRenderer.invoke('endofyear:update', id, payload),
+    delete: (id: number) => ipcRenderer.invoke('endofyear:delete', id),
+  },
+  quickAccomplishments: {
+    getAll: () => ipcRenderer.invoke('quickAccomplishments:getAll'),
+    create: (payload: unknown) => ipcRenderer.invoke('quickAccomplishments:create', payload),
+    update: (id: number, payload: unknown) => ipcRenderer.invoke('quickAccomplishments:update', id, payload),
+    delete: (id: number) => ipcRenderer.invoke('quickAccomplishments:delete', id),
+  },
   data: {
     saveJson: (suggestedName: string, content: string) => ipcRenderer.invoke('data:saveJson', suggestedName, content),
     readJson: () => ipcRenderer.invoke('data:readJson')

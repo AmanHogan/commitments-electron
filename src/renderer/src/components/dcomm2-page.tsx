@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { Dialog } from 'radix-ui'
-import { Trash2, Pencil, Plus, X } from 'lucide-react'
+import { Trash2, Pencil, Plus, X, Upload, Download } from 'lucide-react'
 import type { DevelopmentCommitmentTwo, CreateDevelopmentCommitmentTwoDTO } from '@/types/types'
 import {
   createDevelopmentCommitmentTwo,
@@ -159,6 +159,29 @@ export default function DcommTwoPage({ initialEvents }: Props) {
           </SelectContent>
         </Select>
         <div className="ml-auto flex gap-2">
+          <Button variant="outline" size="sm" onClick={async () => {
+            const result = await window.api.data.readJson()
+            if (!result) return
+            try {
+              const parsed = JSON.parse(result)
+              const records = (parsed.records ?? parsed) as DevelopmentCommitmentTwo[]
+              for (const r of records) {
+                const created = await window.api.dcomm2.create(r) as DevelopmentCommitmentTwo
+                setEvents((p) => [created, ...p])
+              }
+            } catch { /* bad file */ }
+          }}>
+            <Upload className="h-4 w-4" />Import JSON
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => {
+            const envelope = { type: 'dcomm2', version: 1, exportedAt: new Date().toISOString(), records: sorted.map(({ id: _id, createdAt: _ca, updatedAt: _ua, ...rest }) => rest) }
+            const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: 'application/json' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a'); a.href = url; a.download = 'innovation-commitment.json'
+            document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url)
+          }}>
+            <Download className="h-4 w-4" />Export JSON
+          </Button>
           <Button variant="outline" size="sm" onClick={() => void exportDcomm2ToPdf(events)}>Export PDF</Button>
           <Button variant="outline" size="sm" onClick={() => void exportDcomm2ToMarkdown(events)}>Export MD</Button>
         </div>

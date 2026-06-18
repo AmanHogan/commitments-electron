@@ -104,6 +104,28 @@ interface DbApi {
     update: (id: number, payload: unknown) => Promise<unknown>
     delete: (id: number) => Promise<void>
   }
+  reviews: {
+    getAll: () => Promise<unknown[]>
+    upsert: (type: string, category: string, selfAssessment: string, rating: number) => Promise<unknown>
+  }
+  midyear: {
+    getAll: () => Promise<unknown[]>
+    create: (payload: unknown) => Promise<unknown>
+    update: (id: number, payload: unknown) => Promise<unknown>
+    delete: (id: number) => Promise<void>
+  }
+  endofyear: {
+    getAll: () => Promise<unknown[]>
+    create: (payload: unknown) => Promise<unknown>
+    update: (id: number, payload: unknown) => Promise<unknown>
+    delete: (id: number) => Promise<void>
+  }
+  quickAccomplishments: {
+    getAll: () => Promise<unknown[]>
+    create: (payload: unknown) => Promise<unknown>
+    update: (id: number, payload: unknown) => Promise<unknown>
+    delete: (id: number) => Promise<void>
+  }
   data: {
     saveJson: (suggestedName: string, content: string) => Promise<boolean>
     readJson: () => Promise<string | null>

@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { Dialog } from 'radix-ui'
-import { Trash2, Pencil, Plus, X } from 'lucide-react'
+import { Trash2, Pencil, Plus, X, Upload, Download } from 'lucide-react'
 import type {
   BusinessCommitmentTwo,
   CreateBusinessCommitmentTwoDTO,
@@ -227,6 +227,30 @@ export default function BcommTwoPage({ initialEvents }: Props) {
           </SelectContent>
         </Select>
         <div className="ml-auto flex gap-2">
+          <Button variant="outline" size="sm" onClick={async () => {
+            const result = await window.api.data.readJson()
+            if (!result) return
+            try {
+              const parsed = JSON.parse(result)
+              const records = (parsed.records ?? parsed) as BusinessCommitmentTwo[]
+              for (const r of records) {
+                const created = await window.api.bcomm2.create(r) as BusinessCommitmentTwo
+                setEvents((p) => [created, ...p])
+                if (created.id != null) setSubEventsByEvent((prev) => ({ ...prev, [created.id!]: [] }))
+              }
+            } catch { /* bad file */ }
+          }}>
+            <Upload className="h-4 w-4" />Import JSON
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => {
+            const envelope = { type: 'bcomm2', version: 1, exportedAt: new Date().toISOString(), records: sorted.map(({ id: _id, createdAt: _ca, updatedAt: _ua, subEvents: _se, ...rest }) => rest) }
+            const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: 'application/json' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a'); a.href = url; a.download = 'tdp-program-impact.json'
+            document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url)
+          }}>
+            <Download className="h-4 w-4" />Export JSON
+          </Button>
           <Button variant="outline" size="sm" onClick={() => void exportBcomm2ToPdf(events)}>Export PDF</Button>
           <Button variant="outline" size="sm" onClick={() => exportBcomm2ToMarkdown(events)}>Export MD</Button>
         </div>

@@ -56,6 +56,7 @@ export const emptyBusinessCommitmentForm = (): BusinessCommitmentOneFormState =>
 export type DevelopmentCommitmentOne = {
   id?: number
   itemName: string
+  description?: string
   itemDate?: string
   modules?: LearningModule[]
   createdAt?: string
@@ -419,4 +420,53 @@ export type SaveProgressionInput = {
   businessEntries: StarEntry[]
   programEntries: StarEntry[]
   developmentEntries: DevelopmentEntry[]
+}
+
+// ─── Reviews ─────────────────────────────────────────────────────────────────
+
+export type ReviewType = 'midyear' | 'endofyear'
+export type ReviewCategory = 'bcomm1' | 'bcomm2' | 'dcomm1' | 'dcomm2'
+
+export type Review = {
+  id?: number
+  type: ReviewType
+  category: ReviewCategory
+  selfAssessment: string
+  rating: number
+  updatedAt?: string
+}
+
+export type MidYearCheckin = {
+  id: number
+  title: string
+  businessAccomplishments: string
+  developmentProgress: string
+  goingForwardPriorities: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type EndOfYearReview = {
+  id: number
+  title: string
+  bcomm1Notes: string
+  bcomm2Notes: string
+  dcomm1Notes: string
+  dcomm2Notes: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type QuickAccomplishmentCategory = 'bcomm1' | 'bcomm2' | 'dcomm1' | 'dcomm2'
+export const QA_STATUSES = ['Not Started', 'In Progress', 'Completed', 'Exceeded Expectations'] as const
+export type QAStatus = typeof QA_STATUSES[number]
+
+export type QuickAccomplishment = {
+  id: number
+  category: QuickAccomplishmentCategory
+  description: string
+  dateFinished?: string
+  status: QAStatus
+  createdAt: string
+  updatedAt: string
 }

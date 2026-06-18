@@ -1,7 +1,6 @@
-
-import { Card, CardContent } from "./card"
-import SectionLabel from "./section-label"
-import { Badge } from "./badge"
+import { useState } from 'react'
+import { ChevronDown, ChevronUp, Info } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 type DocCompProps = {
   cardTitle?: string
@@ -9,63 +8,79 @@ type DocCompProps = {
   goals?: string
   validationCriteria?: string[]
   tips?: string[]
-}
-
-const sectionBadgeClasses = {
-  goals: "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
-  validation: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-  tips: "bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-300",
+  docsHref?: string
 }
 
 export default function DocComp({
-  cardTitle = "Doc Title",
-  cardDescription = "Document Description",
-  goals = "Goals and measures go here. Describe what the commitment aims to achieve and how success will be measured.",
+  cardTitle = 'Section Guidance',
+  cardDescription,
+  goals,
   validationCriteria = [],
   tips = [],
+  docsHref = '/docs/tdp',
 }: DocCompProps) {
+  const [open, setOpen] = useState(false)
+
   return (
-    <Card className="shadow-sm">
-      <CardContent>
-        <SectionLabel size="md">{cardTitle}</SectionLabel>
-        <p className="mb-4 text-sm text-muted-foreground">{cardDescription}</p>
-        <div className="mb-3 inline-flex items-center gap-2">
-          <Badge className={sectionBadgeClasses.goals}>Goals</Badge>
-          <Badge className={sectionBadgeClasses.validation}>Validation</Badge>
-          <Badge className={sectionBadgeClasses.tips}>Tips</Badge>
+    <div className="rounded-lg border border-border bg-muted/30">
+      {/* Collapsed header — always visible */}
+      <button
+        type="button"
+        onClick={() => setOpen((p) => !p)}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-muted/50"
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <Info className="h-4 w-4 shrink-0 text-primary" />
+          <span className="text-sm font-semibold text-foreground truncate">{cardTitle}</span>
+          {cardDescription && !open && (
+            <span className="hidden sm:block truncate text-sm text-muted-foreground">— {cardDescription}</span>
+          )}
         </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <Link
+            to={docsHref}
+            onClick={(e) => e.stopPropagation()}
+            className="text-xs text-primary underline-offset-2 hover:underline"
+          >
+            TDP Docs
+          </Link>
+          {open ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+        </div>
+      </button>
 
-        <div className="mb-3 items-center gap-2">
-          <span className="text-sm font-bold">Goals / Measures (WHAT & HOW)</span>
-        </div>
-        <p className="mb-4">{goals}</p>
+      {/* Expanded body */}
+      {open && (
+        <div className="border-t border-border px-4 pb-4 pt-3 text-sm">
+          {cardDescription && (
+            <p className="mb-3 text-muted-foreground">{cardDescription}</p>
+          )}
 
-        <div className="mb-3 inline-flex items-center gap-2">
-          <span className="text-sm font-bold">Validation / Completion Criteria</span>
-        </div>
-        {validationCriteria.length > 0 ? (
-          <ul className="ml-4 list-disc space-y-2">
-            {validationCriteria.map((criteria, index) => (
-              <li key={index}>{criteria}</li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-sm text-muted-foreground">No validation criteria provided.</p>
-        )}
+          {goals && (
+            <>
+              <p className="mb-1 font-semibold">Goals / Measures</p>
+              <p className="mb-3 text-muted-foreground">{goals}</p>
+            </>
+          )}
 
-        <div className="mt-4 mb-3 inline-flex items-center gap-2">
-          <span className="text-sm font-bold">Tips</span>
+          {validationCriteria.length > 0 && (
+            <>
+              <p className="mb-1 font-semibold">Validation / Completion Criteria</p>
+              <ul className="mb-3 ml-4 list-disc space-y-1 text-muted-foreground">
+                {validationCriteria.map((c, i) => <li key={i}>{c}</li>)}
+              </ul>
+            </>
+          )}
+
+          {tips.length > 0 && (
+            <>
+              <p className="mb-1 font-semibold">Tips</p>
+              <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
+                {tips.map((t, i) => <li key={i}>{t}</li>)}
+              </ul>
+            </>
+          )}
         </div>
-        {tips.length > 0 ? (
-          <ul className="ml-4 list-disc space-y-2">
-            {tips.map((tip, index) => (
-              <li key={index}>{tip}</li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-sm text-muted-foreground">No tips provided.</p>
-        )}
-      </CardContent>
-    </Card>
+      )}
+    </div>
   )
 }

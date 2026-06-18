@@ -17,10 +17,11 @@ import ResumePage from './pages/ResumePage'
 import FlashcardsPage from './pages/FlashcardsPage'
 import FlashcardSetPage from './pages/FlashcardSetPage'
 import FlashcardStarredPage from './pages/FlashcardStarredPage'
-import FlashcardSkillsPage from './pages/FlashcardSkillsPage'
 import NotesPage from './pages/NotesPage'
 import NoteGroupPage from './pages/NoteGroupPage'
 import ProgressionsPage from './pages/ProgressionsPage'
+import MidYearPage from './pages/MidYearPage'
+import EndOfYearPage from './pages/EndOfYearPage'
 import ReminderToast from './components/ReminderToast'
 import StartupBriefing from './components/StartupBriefing'
 
@@ -70,10 +71,11 @@ export default function App() {
           <Route path="/flashcards/sets" element={<FlashcardsPage />} />
           <Route path="/flashcards/sets/:id" element={<FlashcardSetPage />} />
           <Route path="/flashcards/starred" element={<FlashcardStarredPage />} />
-          <Route path="/flashcards/skills" element={<FlashcardSkillsPage />} />
           <Route path="/notes" element={<NotesPage />} />
           <Route path="/notes/:id" element={<NoteGroupPage />} />
           <Route path="/dashboard/progressions" element={<ProgressionsPage />} />
+          <Route path="/dashboard/review/midyear" element={<MidYearPage />} />
+          <Route path="/dashboard/review/endofyear" element={<EndOfYearPage />} />
           <Route path="/docs/tdp" element={<TdpDocsPage />} />
         </Routes>
       </Layout>

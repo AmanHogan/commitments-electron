@@ -23,9 +23,10 @@ import {
   FileText,
   Layers,
   Star,
-  GraduationCap,
   TrendingUp,
   BookMarked,
+  CalendarCheck,
+  CalendarRange,
 } from 'lucide-react'
 
 const navItems = {
@@ -47,11 +48,12 @@ const navItems = {
   oneOnOne: [{ label: 'One on One Documents', href: '/dashboard/one-on-one', icon: Users }],
   reviews: [
     { label: 'Progressions', href: '/dashboard/progressions', icon: TrendingUp },
+    { label: 'Mid-year Review', href: '/dashboard/review/midyear', icon: CalendarCheck },
+    { label: 'End-of-year Review', href: '/dashboard/review/endofyear', icon: CalendarRange },
   ],
   flashcards: [
     { label: 'Sets', href: '/flashcards/sets', icon: Layers },
     { label: 'Starred', href: '/flashcards/starred', icon: Star },
-    { label: 'Skills', href: '/flashcards/skills', icon: GraduationCap }
   ],
   other: [
     { label: 'Action Items', href: '/dashboard/action-items', icon: CheckSquare },

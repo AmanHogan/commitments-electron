@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { Dialog } from 'radix-ui'
-import { Trash2, Pencil, Plus, X } from 'lucide-react'
+import { Trash2, Pencil, Plus, X, Upload, Download } from 'lucide-react'
 import type {
   DevelopmentCommitmentOne,
   CreateDevelopmentCommitmentOneDTO,
@@ -43,12 +43,31 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
-const emptyItemForm = (): CreateDevelopmentCommitmentOneDTO => ({ itemName: '', itemDate: '' })
+const emptyItemForm = (): CreateDevelopmentCommitmentOneDTO => ({ itemName: '', description: '', itemDate: '' })
 
 const emptyModuleForm = (): CreateLearningModuleDTO => ({
   moduleName: '', type: '', hours: undefined,
   dateStarted: '', dateFinished: '', finished: false, required: false, description: '',
 })
+
+async function importJsonItems(onImport: (items: DevelopmentCommitmentOne[]) => void) {
+  const result = await window.api.data.readJson()
+  if (!result) return
+  try {
+    const parsed = JSON.parse(result)
+    const records = (parsed.records ?? parsed) as DevelopmentCommitmentOne[]
+    onImport(records)
+  } catch { /* bad file */ }
+}
+
+function downloadBlob(content: string, filename: string, mime: string) {
+  const blob = new Blob([content], { type: mime })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = filename
+  document.body.appendChild(a); a.click()
+  document.body.removeChild(a); URL.revokeObjectURL(url)
+}
 
 type Props = { initialItems: DevelopmentCommitmentOne[] }
 
@@ -100,7 +119,7 @@ export default function DcommOnePage({ initialItems }: Props) {
 
   async function openEdit(item: DevelopmentCommitmentOne) {
     setEditingId(item.id!)
-    setItemForm({ itemName: item.itemName, itemDate: item.itemDate ?? '' })
+    setItemForm({ itemName: item.itemName, description: item.description ?? '', itemDate: item.itemDate ?? '' })
     setModForm(emptyModuleForm()); setEditingModId(null); setActiveTab('details'); setError(null)
     setModalOpen(true)
     await loadModules(item.id!)
@@ -217,6 +236,20 @@ export default function DcommOnePage({ initialItems }: Props) {
           </SelectContent>
         </Select>
         <div className="ml-auto flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => void importJsonItems(async (records) => {
+            for (const r of records) {
+              const created = await window.api.dcomm1.create(r) as DevelopmentCommitmentOne
+              setItems((p) => [created, ...p])
+            }
+          })}>
+            <Upload className="h-4 w-4" />Import JSON
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => {
+            const envelope = { type: 'dcomm1', version: 1, exportedAt: new Date().toISOString(), records: items.map(({ id: _id, createdAt: _ca, updatedAt: _ua, modules: _m, ...rest }) => rest) }
+            downloadBlob(JSON.stringify(envelope, null, 2), 'development-commitment.json', 'application/json')
+          }}>
+            <Download className="h-4 w-4" />Export JSON
+          </Button>
           <Button variant="outline" size="sm" onClick={() => void exportDcomm1ToPdf(items, modulesByItem)}>Export PDF</Button>
           <Button variant="outline" size="sm" onClick={() => void exportDcomm1ToMarkdown(items)}>Export MD</Button>
         </div>
@@ -250,7 +283,10 @@ export default function DcommOnePage({ initialItems }: Props) {
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); void openEdit(item) } }}
                     className="cursor-pointer border-t border-border transition hover:bg-muted/40 focus:bg-muted/40 focus:outline-none"
                   >
-                    <td className="px-4 py-3 font-medium">{item.itemName}</td>
+                    <td className="max-w-xs px-4 py-3 font-medium">
+                      <p className="truncate">{item.itemName}</p>
+                      {item.description && <p className="truncate text-xs text-muted-foreground">{item.description}</p>}
+                    </td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {item.itemDate ?? (item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '—')}
                     </td>
@@ -313,6 +349,9 @@ export default function DcommOnePage({ initialItems }: Props) {
                 <div className="flex flex-col gap-3 overflow-y-auto px-6 py-4">
                   <Field label="Item name *">
                     <Input value={itemForm.itemName} onChange={(e) => setItemForm((p) => ({ ...p, itemName: e.target.value }))} required />
+                  </Field>
+                  <Field label="Description">
+                    <Textarea rows={3} value={itemForm.description ?? ''} onChange={(e) => setItemForm((p) => ({ ...p, description: e.target.value }))} placeholder="What does this learning item cover? Goals, context, relevance to your track..." />
                   </Field>
                   <Field label="Item date">
                     <Input type="date" value={itemForm.itemDate ?? ''} onChange={(e) => setItemForm((p) => ({ ...p, itemDate: e.target.value }))} />

@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { Dialog } from 'radix-ui'
-import { Trash2, Pencil, Plus, X } from 'lucide-react'
+import { Trash2, Pencil, Plus, X, Upload, Download } from 'lucide-react'
 import type { BusinessCommitmentOne, BusinessCommitmentOneFormState, ValueEntry } from '@/types/types'
 import { emptyBusinessCommitmentForm } from '@/types/types'
 import { createCommitmentOne, updateBusinessCommitmentOne, deleteCommitmentOne } from '@/lib/actions'
@@ -167,6 +167,29 @@ export default function BcommPage({ initialCommitments }: Props) {
           </SelectContent>
         </Select>
         <div className="ml-auto flex gap-2">
+          <Button variant="outline" size="sm" onClick={async () => {
+            const result = await window.api.data.readJson()
+            if (!result) return
+            try {
+              const parsed = JSON.parse(result)
+              const records = (parsed.records ?? parsed) as BusinessCommitmentOne[]
+              for (const r of records) {
+                const created = await window.api.bcomm1.create(r) as BusinessCommitmentOne
+                setCommitments((p) => [created, ...p])
+              }
+            } catch { /* bad file */ }
+          }}>
+            <Upload className="h-4 w-4" />Import JSON
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => {
+            const envelope = { type: 'bcomm1', version: 1, exportedAt: new Date().toISOString(), records: sorted.map(({ id: _id, createdAt: _ca, ...rest }) => rest) }
+            const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: 'application/json' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a'); a.href = url; a.download = 'business-partner-impact.json'
+            document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url)
+          }}>
+            <Download className="h-4 w-4" />Export JSON
+          </Button>
           <Button variant="outline" size="sm" onClick={() => void exportBcomm1ToPdf(commitments)}>Export PDF</Button>
           <Button variant="outline" size="sm" onClick={() => void exportEachBcomm1ToMarkdown(commitments)}>Export MD</Button>
         </div>

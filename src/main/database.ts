@@ -38,7 +38,49 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS development_commitments_one (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     itemName TEXT NOT NULL,
+    description TEXT,
     itemDate TEXT,
+    createdAt TEXT DEFAULT (datetime('now')),
+    updatedAt TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type TEXT NOT NULL,
+    category TEXT NOT NULL,
+    selfAssessment TEXT DEFAULT '',
+    rating INTEGER DEFAULT 0,
+    updatedAt TEXT DEFAULT (datetime('now')),
+    UNIQUE(type, category)
+  );
+
+  CREATE TABLE IF NOT EXISTS midyear_checkins (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL DEFAULT 'Mid-Year Check-in',
+    businessAccomplishments TEXT DEFAULT '',
+    developmentProgress TEXT DEFAULT '',
+    goingForwardPriorities TEXT DEFAULT '',
+    createdAt TEXT DEFAULT (datetime('now')),
+    updatedAt TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS endofyear_reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL DEFAULT 'End-of-Year Review',
+    bcomm1Notes TEXT DEFAULT '',
+    bcomm2Notes TEXT DEFAULT '',
+    dcomm1Notes TEXT DEFAULT '',
+    dcomm2Notes TEXT DEFAULT '',
+    createdAt TEXT DEFAULT (datetime('now')),
+    updatedAt TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS quick_accomplishments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    category TEXT NOT NULL,
+    description TEXT NOT NULL,
+    dateFinished TEXT,
+    status TEXT DEFAULT 'Completed',
     createdAt TEXT DEFAULT (datetime('now')),
     updatedAt TEXT DEFAULT (datetime('now'))
   );
@@ -248,6 +290,7 @@ try { db.exec("ALTER TABLE business_commitments_two ADD COLUMN applicationContex
 try { db.exec("ALTER TABLE business_commitments_two ADD COLUMN impact TEXT") } catch { /* already exists */ }
 try { db.exec("ALTER TABLE development_commitments_two ADD COLUMN applicationContext TEXT") } catch { /* already exists */ }
 try { db.exec("ALTER TABLE development_commitments_two ADD COLUMN impact TEXT") } catch { /* already exists */ }
+try { db.exec("ALTER TABLE development_commitments_one ADD COLUMN description TEXT") } catch { /* already exists */ }
 
 const BOOL_COLS = new Set([
   'improvedOutcomes', 'increasedEfficiency', 'reducedRiskCost',
@@ -350,11 +393,11 @@ export const bcomm1 = {
 export const dcomm1 = {
   getAll: () => normalizeAll(db.prepare('SELECT * FROM development_commitments_one ORDER BY createdAt DESC').all() as Record<string, unknown>[]),
   create: (p: Record<string, unknown>) => {
-    const r = db.prepare('INSERT INTO development_commitments_one (itemName,itemDate) VALUES (?,?)').run(p.itemName, p.itemDate??null)
+    const r = db.prepare('INSERT INTO development_commitments_one (itemName,description,itemDate) VALUES (?,?,?)').run(p.itemName, p.description??null, p.itemDate??null)
     return normalize(db.prepare('SELECT * FROM development_commitments_one WHERE id=?').get(r.lastInsertRowid) as Record<string, unknown>)
   },
   update: (id: number, p: Record<string, unknown>) => {
-    db.prepare("UPDATE development_commitments_one SET itemName=?,itemDate=?,updatedAt=datetime('now') WHERE id=?").run(p.itemName, p.itemDate??null, id)
+    db.prepare("UPDATE development_commitments_one SET itemName=?,description=?,itemDate=?,updatedAt=datetime('now') WHERE id=?").run(p.itemName, p.description??null, p.itemDate??null, id)
     return normalize(db.prepare('SELECT * FROM development_commitments_one WHERE id=?').get(id) as Record<string, unknown>)
   },
   delete: (id: number) => { db.prepare('DELETE FROM development_commitments_one WHERE id=?').run(id) },
@@ -746,4 +789,80 @@ export const progressions = {
     return parseProgressionRow(db.prepare('SELECT * FROM progressions WHERE id=?').get(id) as Record<string, unknown>)
   },
   delete: (id: number) => { db.prepare('DELETE FROM progressions WHERE id=?').run(id) }
+}
+
+// ─── Reviews (mid-year / end-of-year) ────────────────────────────────────────
+
+export const reviews = {
+  getAll: () => db.prepare('SELECT * FROM reviews').all(),
+  upsert: (type: string, category: string, selfAssessment: string, rating: number) => {
+    db.prepare(`
+      INSERT INTO reviews (type, category, selfAssessment, rating, updatedAt)
+      VALUES (?, ?, ?, ?, datetime('now'))
+      ON CONFLICT(type, category) DO UPDATE SET
+        selfAssessment=excluded.selfAssessment,
+        rating=excluded.rating,
+        updatedAt=excluded.updatedAt
+    `).run(type, category, selfAssessment, rating)
+    return db.prepare('SELECT * FROM reviews WHERE type=? AND category=?').get(type, category)
+  }
+}
+
+// ─── Mid-year Check-ins ───────────────────────────────────────────────────────
+
+export const midyear = {
+  getAll: () => db.prepare('SELECT * FROM midyear_checkins ORDER BY createdAt DESC').all(),
+  create: (p: Record<string, unknown>) => {
+    const r = db.prepare(`
+      INSERT INTO midyear_checkins (title, businessAccomplishments, developmentProgress, goingForwardPriorities)
+      VALUES (?, ?, ?, ?)
+    `).run(p.title ?? 'Mid-Year Check-in', p.businessAccomplishments ?? '', p.developmentProgress ?? '', p.goingForwardPriorities ?? '')
+    return db.prepare('SELECT * FROM midyear_checkins WHERE id=?').get(r.lastInsertRowid)
+  },
+  update: (id: number, p: Record<string, unknown>) => {
+    db.prepare(`
+      UPDATE midyear_checkins SET title=?, businessAccomplishments=?, developmentProgress=?, goingForwardPriorities=?, updatedAt=datetime('now')
+      WHERE id=?
+    `).run(p.title, p.businessAccomplishments ?? '', p.developmentProgress ?? '', p.goingForwardPriorities ?? '', id)
+    return db.prepare('SELECT * FROM midyear_checkins WHERE id=?').get(id)
+  },
+  delete: (id: number) => { db.prepare('DELETE FROM midyear_checkins WHERE id=?').run(id) }
+}
+
+// ─── End-of-year Reviews ──────────────────────────────────────────────────────
+
+export const endofyear = {
+  getAll: () => db.prepare('SELECT * FROM endofyear_reviews ORDER BY createdAt DESC').all(),
+  create: (p: Record<string, unknown>) => {
+    const r = db.prepare(`
+      INSERT INTO endofyear_reviews (title, bcomm1Notes, bcomm2Notes, dcomm1Notes, dcomm2Notes)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(p.title ?? 'End-of-Year Review', p.bcomm1Notes ?? '', p.bcomm2Notes ?? '', p.dcomm1Notes ?? '', p.dcomm2Notes ?? '')
+    return db.prepare('SELECT * FROM endofyear_reviews WHERE id=?').get(r.lastInsertRowid)
+  },
+  update: (id: number, p: Record<string, unknown>) => {
+    db.prepare(`
+      UPDATE endofyear_reviews SET title=?, bcomm1Notes=?, bcomm2Notes=?, dcomm1Notes=?, dcomm2Notes=?, updatedAt=datetime('now')
+      WHERE id=?
+    `).run(p.title, p.bcomm1Notes ?? '', p.bcomm2Notes ?? '', p.dcomm1Notes ?? '', p.dcomm2Notes ?? '', id)
+    return db.prepare('SELECT * FROM endofyear_reviews WHERE id=?').get(id)
+  },
+  delete: (id: number) => { db.prepare('DELETE FROM endofyear_reviews WHERE id=?').run(id) }
+}
+
+// ─── Quick Accomplishments ────────────────────────────────────────────────────
+
+export const quickAccomplishments = {
+  getAll: () => db.prepare('SELECT * FROM quick_accomplishments ORDER BY dateFinished DESC, createdAt DESC').all(),
+  create: (p: Record<string, unknown>) => {
+    const r = db.prepare('INSERT INTO quick_accomplishments (category, description, dateFinished, status) VALUES (?, ?, ?, ?)')
+      .run(p.category, p.description, p.dateFinished ?? null, p.status ?? 'Completed')
+    return db.prepare('SELECT * FROM quick_accomplishments WHERE id=?').get(r.lastInsertRowid)
+  },
+  update: (id: number, p: Record<string, unknown>) => {
+    db.prepare("UPDATE quick_accomplishments SET category=?, description=?, dateFinished=?, status=?, updatedAt=datetime('now') WHERE id=?")
+      .run(p.category, p.description, p.dateFinished ?? null, p.status ?? 'Completed', id)
+    return db.prepare('SELECT * FROM quick_accomplishments WHERE id=?').get(id)
+  },
+  delete: (id: number) => { db.prepare('DELETE FROM quick_accomplishments WHERE id=?').run(id) }
 }
