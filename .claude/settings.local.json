@@ -24,7 +24,9 @@
       "Bash(git commit -q -m ' *)",
       "Bash(gh auth *)",
       "Bash(mkdir -p /Users/amanhogan/dev/hello-world)",
-      "Bash(kubectl get *)"
+      "Bash(kubectl get *)",
+      "Bash(kubectl logs *)",
+      "Bash(ls /Users/amanhogan/dev/ && echo \"---\" && ls /Users/amanhogan/dev/commitments-electron/ 2>/dev/null || echo \"NOT FOUND\")"
     ]
   }
 }

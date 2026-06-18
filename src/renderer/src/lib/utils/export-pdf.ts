@@ -66,7 +66,7 @@ function addTitle(ctx: PdfCtx, text: string): void {
   ctx.y += 18
 }
 
-function addSubtitle(ctx: PdfCtx, text: string): void {
+function addSubtitle(ctx: PdfCtx, _text: string): void {
   ensureSpace(ctx, 30)
   ctx.pdf.setFontSize(8)
   ctx.pdf.setFont("helvetica", "normal")

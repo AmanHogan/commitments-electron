@@ -1,12 +1,12 @@
-
-import { useMemo, useState } from "react"
+import { useMemo, useState, type FormEvent } from 'react'
+import { Dialog } from 'radix-ui'
+import { Trash2, Pencil, Plus, X } from 'lucide-react'
 import type {
   DevelopmentCommitmentOne,
   CreateDevelopmentCommitmentOneDTO,
-
   LearningModule,
   CreateLearningModuleDTO,
-} from "@/types/types"
+} from '@/types/types'
 import {
   createDevelopmentCommitmentOne,
   updateDevelopmentCommitmentOne,
@@ -15,186 +15,174 @@ import {
   createModuleForItem,
   updateLearningModule,
   deleteLearningModule,
-} from "@/lib/actions"
-import { Input } from "./ui/input"
-import { Textarea } from "./ui/textarea"
-import { Label } from "./ui/label"
-import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "./ui/card"
-import DocComp from "./ui/doc-comp"
-import { exportDcomm1ToMarkdown } from "@/lib/utils/export-markdown"
-import { exportDcomm1ToPdf } from "@/lib/utils/export-pdf"
+} from '@/lib/actions'
+import { exportDcomm1ToPdf } from '@/lib/utils/export-pdf'
+import { exportDcomm1ToMarkdown } from '@/lib/utils/export-markdown'
+import DocComp from './ui/doc-comp'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
+import { Label } from './ui/label'
+import { Textarea } from './ui/textarea'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select'
 
-type Props = {
-  initialItems: DevelopmentCommitmentOne[]
+type SortField = 'itemDate' | 'createdAt' | 'itemName'
+type SortDir = 'asc' | 'desc'
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <Label>{label}</Label>
+      {children}
+    </div>
+  )
 }
 
-const emptyItemForm = (): CreateDevelopmentCommitmentOneDTO => ({
-  itemName: "",
-  itemDate: "",
-})
+const emptyItemForm = (): CreateDevelopmentCommitmentOneDTO => ({ itemName: '', itemDate: '' })
 
 const emptyModuleForm = (): CreateLearningModuleDTO => ({
-  moduleName: "",
-  type: "",
-  hours: undefined,
-  dateStarted: "",
-  dateFinished: "",
-  finished: false,
-  required: false,
-  description: "",
+  moduleName: '', type: '', hours: undefined,
+  dateStarted: '', dateFinished: '', finished: false, required: false, description: '',
 })
 
-export default function DevelopmentCommitmentOnePage({ initialItems }: Props) {
+type Props = { initialItems: DevelopmentCommitmentOne[] }
+
+export default function DcommOnePage({ initialItems }: Props) {
   const [items, setItems] = useState<DevelopmentCommitmentOne[]>(initialItems)
+  const [modulesByItem, setModulesByItem] = useState<Record<number, LearningModule[]>>({})
+  const [loadedIds, setLoadedIds] = useState<Set<number>>(new Set())
+
   const [itemForm, setItemForm] = useState<CreateDevelopmentCommitmentOneDTO>(emptyItemForm())
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [modalOpen, setModalOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [expandedItemId, setExpandedItemId] = useState<number | null>(null)
-  const [sortField, setSortField] = useState<"itemDate" | "createdAt" | "itemName">("itemDate")
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
-  const [editingItemId, setEditingItemId] = useState<number | null>(null)
+  const [activeTab, setActiveTab] = useState<'details' | 'modules'>('details')
 
-  // Per-item module state
-  const [modulesByItem, setModulesByItem] = useState<Record<number, LearningModule[]>>({})
-  const [moduleForm, setModuleForm] = useState<CreateLearningModuleDTO>(emptyModuleForm())
-  const [editingModuleId, setEditingModuleId] = useState<number | null>(null)
+  const [modForm, setModForm] = useState<CreateLearningModuleDTO>(emptyModuleForm())
+  const [editingModId, setEditingModId] = useState<number | null>(null)
 
-  async function handleCreateItem(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
+  const [sortField, setSortField] = useState<SortField>('itemDate')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+
+  const sorted = useMemo(() => {
+    return [...items].sort((a, b) => {
+      const av = sortField === 'itemName' ? a.itemName.toLowerCase()
+        : sortField === 'itemDate' ? (a.itemDate ?? a.createdAt ?? '')
+        : (a.createdAt ?? '')
+      const bv = sortField === 'itemName' ? b.itemName.toLowerCase()
+        : sortField === 'itemDate' ? (b.itemDate ?? b.createdAt ?? '')
+        : (b.createdAt ?? '')
+      if (av === bv) return 0
+      const ord = av < bv ? -1 : 1
+      return sortDir === 'asc' ? ord : -ord
+    })
+  }, [items, sortField, sortDir])
+
+  async function loadModules(id: number) {
+    if (loadedIds.has(id)) return
     try {
-      if (editingItemId) {
-        const updated = await updateDevelopmentCommitmentOne(editingItemId, itemForm)
-        setItems((prev) => prev.map((item) => (item.id === editingItemId ? updated : item)))
-        setEditingItemId(null)
+      const mods = await getModulesForItem(id)
+      setModulesByItem((p) => ({ ...p, [id]: mods }))
+      setLoadedIds((p) => new Set([...p, id]))
+    } catch { /* silent */ }
+  }
+
+  function openCreate() {
+    setEditingId(null); setItemForm(emptyItemForm()); setModForm(emptyModuleForm())
+    setEditingModId(null); setActiveTab('details'); setError(null); setModalOpen(true)
+  }
+
+  async function openEdit(item: DevelopmentCommitmentOne) {
+    setEditingId(item.id!)
+    setItemForm({ itemName: item.itemName, itemDate: item.itemDate ?? '' })
+    setModForm(emptyModuleForm()); setEditingModId(null); setActiveTab('details'); setError(null)
+    setModalOpen(true)
+    await loadModules(item.id!)
+  }
+
+  function closeModal() {
+    setModalOpen(false); setEditingId(null); setItemForm(emptyItemForm())
+    setModForm(emptyModuleForm()); setEditingModId(null); setError(null)
+  }
+
+  async function handleSaveItem(e: FormEvent) {
+    e.preventDefault()
+    if (!itemForm.itemName.trim()) { setError('Item name is required.'); return }
+    setLoading(true); setError(null)
+    try {
+      if (editingId != null) {
+        const updated = await updateDevelopmentCommitmentOne(editingId, itemForm)
+        setItems((p) => p.map((it) => (it.id === editingId ? updated : it)))
+        closeModal()
       } else {
         const created = await createDevelopmentCommitmentOne(itemForm)
-        setItems((prev) => [...prev, created])
+        setItems((p) => [created, ...p])
+        closeModal()
       }
-      setItemForm(emptyItemForm())
     } catch {
-      setError(editingItemId ? "Failed to update learning item" : "Failed to create learning item")
+      setError('Could not save.')
     } finally {
       setLoading(false)
-    }
-  }
-
-  async function toggleExpand(item: DevelopmentCommitmentOne) {
-    const id = item.id!
-    if (expandedItemId === id) {
-      setExpandedItemId(null)
-    } else {
-      setExpandedItemId(id)
-      if (!modulesByItem[id]) {
-        try {
-          const modules = await getModulesForItem(id)
-          setModulesByItem((prev) => ({ ...prev, [id]: modules }))
-        } catch {
-          setError("Failed to load modules")
-        }
-      }
-      setModuleForm(emptyModuleForm())
-      setEditingModuleId(null)
-    }
-  }
-
-  const sortedItems = useMemo(() => {
-    return [...items].sort((a, b) => {
-      const aValue =
-        sortField === "itemName"
-          ? a.itemName.toLowerCase()
-          : sortField === "itemDate"
-            ? (a.itemDate ?? a.createdAt ?? "")
-            : (a.createdAt ?? "")
-      const bValue =
-        sortField === "itemName"
-          ? b.itemName.toLowerCase()
-          : sortField === "itemDate"
-            ? (b.itemDate ?? b.createdAt ?? "")
-            : (b.createdAt ?? "")
-
-      if (aValue === bValue) return 0
-      const order = aValue < bValue ? -1 : 1
-
-      return sortDirection === "asc" ? order : -order
-    })
-  }, [items, sortField, sortDirection])
-
-  function handleModuleField(field: keyof CreateLearningModuleDTO, val: string | boolean | number | undefined) {
-    setModuleForm((prev) => ({ ...prev, [field]: val }))
-  }
-
-  async function handleSaveModule(e: React.FormEvent, itemId: number) {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
-    try {
-      if (editingModuleId) {
-        const updated = await updateLearningModule(editingModuleId, moduleForm)
-        setModulesByItem((prev) => ({
-          ...prev,
-          [itemId]: prev[itemId].map((m) => (m.id === updated.id ? updated : m)),
-        }))
-        setEditingModuleId(null)
-      } else {
-        const created = await createModuleForItem(itemId, moduleForm)
-        setModulesByItem((prev) => ({
-          ...prev,
-          [itemId]: [...(prev[itemId] ?? []), created],
-        }))
-      }
-      setModuleForm(emptyModuleForm())
-    } catch {
-      setError(editingModuleId ? "Failed to update module" : "Failed to create module")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  function startEditModule(mod: LearningModule) {
-    setEditingModuleId(mod.id!)
-    setModuleForm({
-      moduleName: mod.moduleName,
-      type: mod.type ?? "",
-      hours: mod.hours,
-      dateStarted: mod.dateStarted ?? "",
-      dateFinished: mod.dateFinished ?? "",
-      finished: mod.finished ?? false,
-      required: mod.required ?? false,
-      description: mod.description ?? "",
-    })
-  }
-
-  function cancelEditModule() {
-    setEditingModuleId(null)
-    setModuleForm(emptyModuleForm())
-  }
-
-  async function handleDeleteModule(moduleId: number, itemId: number) {
-    try {
-      await deleteLearningModule(moduleId)
-      setModulesByItem((prev) => ({
-        ...prev,
-        [itemId]: prev[itemId].filter((m) => m.id !== moduleId),
-      }))
-    } catch {
-      setError("Failed to delete module")
     }
   }
 
   async function handleDeleteItem(id: number) {
+    setLoading(true)
     try {
       await deleteDevelopmentCommitmentOne(id)
-      setItems((prev) => prev.filter((item) => item.id !== id))
-      if (expandedItemId === id) setExpandedItemId(null)
-    } catch {
-      setError("Failed to delete learning item")
-    }
+      setItems((p) => p.filter((it) => it.id !== id))
+      if (editingId === id) closeModal()
+    } finally { setLoading(false) }
   }
 
+  // Module handlers
+  async function handleSaveMod(e: FormEvent) {
+    e.preventDefault()
+    if (!modForm.moduleName.trim() || editingId == null) return
+    setLoading(true); setError(null)
+    try {
+      if (editingModId != null) {
+        const updated = await updateLearningModule(editingModId, modForm)
+        setModulesByItem((p) => ({ ...p, [editingId]: (p[editingId] ?? []).map((m) => (m.id === updated.id ? updated : m)) }))
+        setEditingModId(null)
+      } else {
+        const created = await createModuleForItem(editingId, modForm)
+        setModulesByItem((p) => ({ ...p, [editingId]: [...(p[editingId] ?? []), created] }))
+      }
+      setModForm(emptyModuleForm())
+    } catch {
+      setError('Could not save module.')
+    } finally { setLoading(false) }
+  }
+
+  async function handleDeleteMod(modId: number) {
+    if (editingId == null) return
+    setLoading(true)
+    try {
+      await deleteLearningModule(modId)
+      setModulesByItem((p) => ({ ...p, [editingId]: (p[editingId] ?? []).filter((m) => m.id !== modId) }))
+    } finally { setLoading(false) }
+  }
+
+  function startEditMod(mod: LearningModule) {
+    setEditingModId(mod.id!)
+    setModForm({
+      moduleName: mod.moduleName, type: mod.type ?? '', hours: mod.hours,
+      dateStarted: mod.dateStarted ?? '', dateFinished: mod.dateFinished ?? '',
+      finished: mod.finished ?? false, required: mod.required ?? false, description: mod.description ?? '',
+    })
+  }
+
+  const currentMods = editingId != null ? (modulesByItem[editingId] ?? []) : []
+
   return (
-    <div className="space-y-8">
+    <div className="flex flex-col gap-6">
       <DocComp
         cardTitle="Development Commitment"
         cardDescription="Build track-aligned technical skills, AI capabilities, business knowledge, and leadership skills."
@@ -209,280 +197,229 @@ export default function DevelopmentCommitmentOnePage({ initialItems }: Props) {
         ]}
       />
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium">Sort by:</label>
-          <select
-            value={sortField}
-            onChange={(e) => setSortField(e.target.value as "itemDate" | "createdAt" | "itemName")}
-            className="rounded border px-2 py-1 text-sm"
-          >
-            <option value="itemDate">Item date</option>
-            <option value="createdAt">Date added</option>
-            <option value="itemName">Item name</option>
-          </select>
-          <button
-            type="button"
-            onClick={() => setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"))}
-            className="rounded border px-3 py-1.5 text-sm hover:bg-accent"
-          >
-            {sortDirection === "asc" ? "Ascending" : "Descending"}
-          </button>
-        </div>
-
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => exportDcomm1ToPdf(items, modulesByItem)}
-            className="rounded border px-3 py-1.5 text-sm hover:bg-accent"
-          >
-            Export PDF
-          </button>
-          <button
-            type="button"
-            onClick={() => exportDcomm1ToMarkdown(items)}
-            className="rounded border px-3 py-1.5 text-sm hover:bg-accent"
-          >
-            Export Markdown
-          </button>
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button onClick={openCreate}><Plus className="h-4 w-4" />New item</Button>
+        <span className="text-sm font-medium text-muted-foreground">Sort by</span>
+        <Select value={sortField} onValueChange={(v) => setSortField(v as SortField)}>
+          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="itemDate">Item date</SelectItem>
+            <SelectItem value="createdAt">Date added</SelectItem>
+            <SelectItem value="itemName">Item name</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={sortDir} onValueChange={(v) => setSortDir(v as SortDir)}>
+          <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="asc">Ascending</SelectItem>
+            <SelectItem value="desc">Descending</SelectItem>
+          </SelectContent>
+        </Select>
+        <div className="ml-auto flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => void exportDcomm1ToPdf(items, modulesByItem)}>Export PDF</Button>
+          <Button variant="outline" size="sm" onClick={() => void exportDcomm1ToMarkdown(items)}>Export MD</Button>
         </div>
       </div>
-      {/* New learning item form */}
-      <Card className="p-0">
-        <form onSubmit={handleCreateItem} className="flex flex-col">
-          <CardHeader className="pt-4">
-            <CardTitle>{editingItemId ? "Edit Learning Item" : "New Learning Item"}</CardTitle>
-            <CardDescription>
-              {editingItemId
-                ? "Update the item name or date, then save changes."
-                : "Add a new development item and create modules for tracking."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2">
-              <Label>Learning Item</Label>
-              <Input
-                required
-                placeholder="Item name *"
-                value={itemForm.itemName}
-                onChange={(e) => setItemForm((prev) => ({ ...prev, itemName: e.target.value }))}
-              />
+
+      {/* Table */}
+      {sorted.length === 0 ? (
+        <div className="rounded-lg border border-dashed py-12 text-center">
+          <p className="text-sm text-muted-foreground">No learning items yet. Click <strong>New item</strong> to add one.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/60 text-left">
+              <tr>
+                <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">Item Name</th>
+                <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">Date</th>
+                <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">Modules</th>
+                <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((item) => {
+                const mods = modulesByItem[item.id!] ?? item.modules ?? []
+                return (
+                  <tr
+                    key={item.id}
+                    onClick={() => void openEdit(item)}
+                    tabIndex={0}
+                    role="button"
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); void openEdit(item) } }}
+                    className="cursor-pointer border-t border-border transition hover:bg-muted/40 focus:bg-muted/40 focus:outline-none"
+                  >
+                    <td className="px-4 py-3 font-medium">{item.itemName}</td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {item.itemDate ?? (item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '—')}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{mods.length}</td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="icon-xs" aria-label="Edit" onClick={(e) => { e.stopPropagation(); void openEdit(item) }}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon-xs" aria-label="Delete" onClick={(e) => { e.stopPropagation(); void handleDeleteItem(item.id!) }}>
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Modal */}
+      <Dialog.Root open={modalOpen} onOpenChange={(v) => { if (!v) closeModal() }}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" />
+          <Dialog.Content
+            aria-describedby={undefined}
+            className="fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl border border-border bg-card shadow-xl focus:outline-none"
+          >
+            {/* Modal header */}
+            <div className="flex items-center justify-between border-b border-border px-6 py-4">
+              <Dialog.Title className="text-lg font-semibold">
+                {editingId != null ? 'Edit learning item' : 'New learning item'}
+              </Dialog.Title>
+              <Dialog.Close asChild>
+                <Button variant="ghost" size="icon-xs" aria-label="Close"><X className="h-4 w-4" /></Button>
+              </Dialog.Close>
             </div>
-            <div className="flex flex-col gap-2">
-              <Label>Item date</Label>
-              <Input
-                type="date"
-                value={itemForm.itemDate ?? ""}
-                onChange={(e) => setItemForm((prev) => ({ ...prev, itemDate: e.target.value }))}
-              />
-            </div>
-            {error && <p className="text-sm text-red-500">{error}</p>}
-          </CardContent>
-          <CardFooter className="flex items-center gap-3">
-            <button type="submit" disabled={loading} className="rounded bg-primary px-4 py-2 text-sm text-primary-foreground hover:opacity-90 disabled:opacity-50">
-              {loading ? "Saving..." : editingItemId ? "Save Changes" : "Add Item"}
-            </button>
-            {editingItemId && (
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingItemId(null)
-                  setItemForm(emptyItemForm())
-                }}
-                className="rounded border px-4 py-2 text-sm"
-              >
-                Cancel
-              </button>
+
+            {/* Tabs — only when editing */}
+            {editingId != null && (
+              <div className="flex border-b border-border">
+                {(['details', 'modules'] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setActiveTab(tab)}
+                    className={`px-6 py-2.5 text-sm font-medium transition ${activeTab === tab ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                  >
+                    {tab === 'details' ? 'Details' : `Modules (${currentMods.length})`}
+                  </button>
+                ))}
+              </div>
             )}
-          </CardFooter>
-        </form>
-      </Card>
 
-      {/* Learning items list */}
-      <ul className="space-y-3">
-        {sortedItems.map((item) => {
-          const isExpanded = expandedItemId === item.id
-          const modules = modulesByItem[item.id!] ?? []
-          return (
-            <li key={item.id}>
-              <Card className="shadow-sm">
-                <CardContent>
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="font-medium">{item.itemName}</p>
-                      {item.itemDate ? (
-                        <p className="text-xs text-muted-foreground">Item date: {item.itemDate}</p>
-                      ) : item.createdAt ? (
-                        <p className="text-xs text-muted-foreground">
-                          Added: {new Date(item.createdAt).toLocaleDateString()}
-                        </p>
-                      ) : null}
-                      {modulesByItem[item.id!] && (
-                        <p className="text-xs text-muted-foreground">{modules.length} module(s)</p>
-                      )}
-                    </div>
-                    <div className="flex shrink-0 flex-col gap-2">
-                      <button
-                        onClick={() => toggleExpand(item)}
-                        className="rounded border px-3 py-1 text-sm hover:bg-accent"
-                      >
-                        {isExpanded ? "Collapse" : "Modules"}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setEditingItemId(item.id!)
-                          setItemForm({ itemName: item.itemName, itemDate: item.itemDate ?? "" })
-                        }}
-                        className="rounded border px-3 py-1 text-sm hover:bg-accent"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteItem(item.id!)}
-                        className="rounded border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50"
-                      >
-                        Delete
-                      </button>
-                    </div>
+            {/* Details tab */}
+            {activeTab === 'details' && (
+              <form onSubmit={(e) => void handleSaveItem(e)} className="flex min-h-0 flex-1 flex-col">
+                <div className="flex flex-col gap-3 overflow-y-auto px-6 py-4">
+                  <Field label="Item name *">
+                    <Input value={itemForm.itemName} onChange={(e) => setItemForm((p) => ({ ...p, itemName: e.target.value }))} required />
+                  </Field>
+                  <Field label="Item date">
+                    <Input type="date" value={itemForm.itemDate ?? ''} onChange={(e) => setItemForm((p) => ({ ...p, itemDate: e.target.value }))} />
+                  </Field>
+                  {error && <p className="text-sm text-destructive">{error}</p>}
+                </div>
+                <div className="flex items-center gap-2 border-t border-border px-6 py-4">
+                  {editingId != null && (
+                    <Button type="button" variant="destructive" size="sm" disabled={loading} onClick={() => void handleDeleteItem(editingId)}>
+                      <Trash2 className="h-4 w-4" />Delete
+                    </Button>
+                  )}
+                  <div className="ml-auto flex gap-2">
+                    <Button type="button" variant="outline" onClick={closeModal} disabled={loading}>Cancel</Button>
+                    <Button type="submit" disabled={loading}>{editingId != null ? 'Save changes' : 'Add item'}</Button>
                   </div>
-                </CardContent>
+                </div>
+              </form>
+            )}
 
-                {/* Modules panel */}
-                {isExpanded && (
-                  <div className="space-y-4 border-t px-4 pt-3 pb-4">
-                    {/* Module form */}
-                    <form onSubmit={(e) => handleSaveModule(e, item.id!)} className="flex flex-col gap-2">
-                      <p className="text-sm font-semibold">{editingModuleId ? "Edit Module" : "Add Module"}</p>
-                      <Input
-                        required
-                        placeholder="Module name *"
-                        value={moduleForm.moduleName}
-                        onChange={(e) => handleModuleField("moduleName", e.target.value)}
-                      />
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="Type (e.g. course, book)"
-                          value={moduleForm.type ?? ""}
-                          onChange={(e) => handleModuleField("type", e.target.value)}
-                          className="flex-1"
-                        />
-                        <Input
-                          type="number"
-                          placeholder="Hours"
-                          value={moduleForm.hours ?? ""}
-                          onChange={(e) =>
-                            handleModuleField("hours", e.target.value ? parseFloat(e.target.value) : undefined)
-                          }
-                          className="w-24"
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <div className="flex flex-1 flex-col gap-2">
-                          <Label className="text-xs">Date started</Label>
-                          <Input
-                            type="date"
-                            value={moduleForm.dateStarted ?? ""}
-                            onChange={(e) => handleModuleField("dateStarted", e.target.value)}
-                          />
-                        </div>
-                        <div className="flex flex-1 flex-col gap-2">
-                          <Label className="text-xs">Date finished</Label>
-                          <Input
-                            type="date"
-                            value={moduleForm.dateFinished ?? ""}
-                            onChange={(e) => handleModuleField("dateFinished", e.target.value)}
-                          />
-                        </div>
-                      </div>
-                      <Textarea
-                        placeholder="Description"
-                        value={moduleForm.description ?? ""}
-                        onChange={(e) => handleModuleField("description", e.target.value)}
-                        rows={2}
-                      />
-                      <div className="flex gap-4 text-sm">
-                        <label className="flex items-center gap-1">
-                          <input
-                            type="checkbox"
-                            checked={moduleForm.finished ?? false}
-                            onChange={(e) => handleModuleField("finished", e.target.checked)}
-                          />
-                          Finished
-                        </label>
-                        <label className="flex items-center gap-1">
-                          <input
-                            type="checkbox"
-                            checked={moduleForm.required ?? false}
-                            onChange={(e) => handleModuleField("required", e.target.checked)}
-                          />
-                          Required
-                        </label>
-                      </div>
-                      {error && <p className="text-sm text-red-500">{error}</p>}
-                      <div className="flex gap-2">
-                        <button
-                          type="submit"
-                          disabled={loading}
-                          className="rounded bg-primary px-3 py-1 text-sm text-primary-foreground hover:opacity-90 disabled:opacity-50"
-                        >
-                          {loading ? "Saving..." : editingModuleId ? "Update" : "Add Module"}
-                        </button>
-                        {editingModuleId && (
-                          <button type="button" onClick={cancelEditModule} className="rounded border px-3 py-1 text-sm">
-                            Cancel
-                          </button>
-                        )}
-                      </div>
-                    </form>
-
-                    {/* Module list */}
-                    {modules.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No modules yet.</p>
-                    ) : (
-                      <ul className="space-y-2">
-                        {modules.map((mod) => (
-                          <li key={mod.id} className="rounded border p-3 text-sm">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="space-y-0.5">
-                                <p className="font-medium">{mod.moduleName}</p>
-                                {mod.type && <p className="text-muted-foreground">Type: {mod.type}</p>}
-                                {mod.hours != null && <p className="text-muted-foreground">Hours: {mod.hours}</p>}
-                                {mod.dateStarted && <p className="text-muted-foreground">Started: {mod.dateStarted}</p>}
-                                {mod.dateFinished && (
-                                  <p className="text-muted-foreground">Finished: {mod.dateFinished}</p>
-                                )}
-                                {mod.description && <p className="text-muted-foreground">{mod.description}</p>}
-                                <div className="flex gap-3 text-xs text-muted-foreground">
-                                  {mod.finished && <span className="text-green-600">✓ Finished</span>}
-                                  {mod.required && <span>Required</span>}
-                                </div>
-                              </div>
-                              <div className="flex shrink-0 flex-col gap-1">
-                                <button
-                                  onClick={() => startEditModule(mod)}
-                                  className="rounded border px-2 py-1 text-xs hover:bg-accent"
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteModule(mod.id!, item.id!)}
-                                  className="rounded border border-red-300 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
+            {/* Modules tab */}
+            {activeTab === 'modules' && editingId != null && (
+              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4 gap-4">
+                {/* Module form */}
+                <form onSubmit={(e) => void handleSaveMod(e)} className="flex flex-col gap-3 rounded-lg border border-border p-4">
+                  <p className="text-sm font-semibold">{editingModId != null ? 'Edit module' : 'Add module'}</p>
+                  <Field label="Module name *">
+                    <Input value={modForm.moduleName} onChange={(e) => setModForm((p) => ({ ...p, moduleName: e.target.value }))} required />
+                  </Field>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Type">
+                      <Input value={modForm.type ?? ''} onChange={(e) => setModForm((p) => ({ ...p, type: e.target.value }))} placeholder="e.g. course, book" />
+                    </Field>
+                    <Field label="Hours">
+                      <Input type="number" value={modForm.hours ?? ''} onChange={(e) => setModForm((p) => ({ ...p, hours: e.target.value ? parseFloat(e.target.value) : undefined }))} />
+                    </Field>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Date started">
+                      <Input type="date" value={modForm.dateStarted ?? ''} onChange={(e) => setModForm((p) => ({ ...p, dateStarted: e.target.value }))} />
+                    </Field>
+                    <Field label="Date finished">
+                      <Input type="date" value={modForm.dateFinished ?? ''} onChange={(e) => setModForm((p) => ({ ...p, dateFinished: e.target.value }))} />
+                    </Field>
+                  </div>
+                  <Field label="Description">
+                    <Textarea rows={2} value={modForm.description ?? ''} onChange={(e) => setModForm((p) => ({ ...p, description: e.target.value }))} />
+                  </Field>
+                  <div className="flex gap-4 text-sm">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={modForm.finished ?? false} onChange={(e) => setModForm((p) => ({ ...p, finished: e.target.checked }))} className="h-4 w-4 rounded" />
+                      Finished
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={modForm.required ?? false} onChange={(e) => setModForm((p) => ({ ...p, required: e.target.checked }))} className="h-4 w-4 rounded" />
+                      Required
+                    </label>
+                  </div>
+                  {error && <p className="text-sm text-destructive">{error}</p>}
+                  <div className="flex gap-2 justify-end">
+                    {editingModId != null && (
+                      <Button type="button" variant="outline" size="sm" onClick={() => { setEditingModId(null); setModForm(emptyModuleForm()) }}>Cancel</Button>
                     )}
+                    <Button type="submit" size="sm" disabled={loading}>
+                      {editingModId != null ? 'Update' : <><Plus className="h-4 w-4" />Add</>}
+                    </Button>
                   </div>
+                </form>
+
+                {/* Modules list */}
+                {currentMods.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No modules yet.</p>
+                ) : (
+                  <ul className="flex flex-col gap-2">
+                    {currentMods.map((mod) => (
+                      <li key={mod.id} className="rounded-lg border border-border p-3 text-sm">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="space-y-0.5">
+                            <p className="font-medium">{mod.moduleName}</p>
+                            {mod.type && <p className="text-muted-foreground">Type: {mod.type}</p>}
+                            {mod.hours != null && <p className="text-muted-foreground">Hours: {mod.hours}</p>}
+                            {mod.dateStarted && <p className="text-muted-foreground">Started: {mod.dateStarted}</p>}
+                            {mod.dateFinished && <p className="text-muted-foreground">Finished: {mod.dateFinished}</p>}
+                            {mod.description && <p className="text-muted-foreground">{mod.description}</p>}
+                            <div className="flex gap-3 text-xs text-muted-foreground">
+                              {mod.finished && <span className="text-green-600">✓ Finished</span>}
+                              {mod.required && <span>Required</span>}
+                            </div>
+                          </div>
+                          <div className="flex gap-1 shrink-0">
+                            <Button variant="ghost" size="icon-xs" onClick={() => startEditMod(mod)}><Pencil className="h-3.5 w-3.5" /></Button>
+                            <Button variant="ghost" size="icon-xs" onClick={() => void handleDeleteMod(mod.id!)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
                 )}
-              </Card>
-            </li>
-          )
-        })}
-      </ul>
+
+                <div className="mt-auto flex justify-end border-t border-border pt-4">
+                  <Button variant="outline" onClick={closeModal}>Close</Button>
+                </div>
+              </div>
+            )}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   )
 }

@@ -1,350 +1,331 @@
-import { useMemo, useState } from 'react'
-import type {
-  BusinessCommitmentOne,
-  BusinessCommitmentOneFormState,
-  ValueEntry
-} from '@/types/types'
+import { useMemo, useState, type FormEvent } from 'react'
+import { Dialog } from 'radix-ui'
+import { Trash2, Pencil, Plus, X } from 'lucide-react'
+import type { BusinessCommitmentOne, BusinessCommitmentOneFormState, ValueEntry } from '@/types/types'
 import { emptyBusinessCommitmentForm } from '@/types/types'
-import {
-  createCommitmentOne,
-  updateBusinessCommitmentOne,
-  deleteCommitmentOne
-} from '@/lib/actions'
+import { createCommitmentOne, updateBusinessCommitmentOne, deleteCommitmentOne } from '@/lib/actions'
 import { toFormState, toApiPayload } from '@/lib/mappers/businessCommitmentOneMapper'
-import { Input } from './ui/input'
-import { Textarea } from './ui/textarea'
-import { Label } from './ui/label'
-import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from './ui/card'
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './ui/select'
-import { exportEachBcomm1ToMarkdown, exportSingleBcomm1ToMarkdown } from '@/lib/utils/export-markdown'
 import { exportBcomm1ToPdf } from '@/lib/utils/export-pdf'
+import { exportEachBcomm1ToMarkdown } from '@/lib/utils/export-markdown'
 import DocComp from './ui/doc-comp'
-import CardComp from './ui/card-comp'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
+import { Label } from './ui/label'
+import { Textarea } from './ui/textarea'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select'
 
-const emptyForm = emptyBusinessCommitmentForm
+const VALUE_CATEGORIES = [
+  'Improved outcomes',
+  'Increased efficiency',
+  'Reduced risk/cost',
+  'Enhanced customer experience',
+  'Enhanced employee experience',
+]
 
-type Props = {
-  initialCommitments: BusinessCommitmentOne[]
+type SortField = 'started' | 'dateCompleted' | 'workItem'
+type SortDir = 'asc' | 'desc'
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <Label>{label}</Label>
+      {children}
+    </div>
+  )
 }
 
-export default function BusinessCommitmentsComp({ initialCommitments }: Props) {
+type Props = { initialCommitments: BusinessCommitmentOne[] }
+
+export default function BcommPage({ initialCommitments }: Props) {
   const [commitments, setCommitments] = useState<BusinessCommitmentOne[]>(initialCommitments)
-  const [form, setForm] = useState<BusinessCommitmentOneFormState>(emptyForm())
-  const [valueEntry, setValueEntry] = useState<ValueEntry>({ label: '', value: '' })
-
-  const VALUE_CATEGORIES = [
-    'Improved outcomes',
-    'Increased efficiency',
-    'Reduced risk/cost',
-    'Enhanced customer experience',
-    'Enhanced employee experience'
-  ]
-
-  const [_loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [form, setForm] = useState<BusinessCommitmentOneFormState>(emptyBusinessCommitmentForm())
   const [editingId, setEditingId] = useState<number | null>(null)
-  const [sortField, setSortField] = useState<"started" | "dateCompleted" | "workItem">("started")
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
+  const [modalOpen, setModalOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [sortField, setSortField] = useState<SortField>('started')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [valueEntry, setValueEntry] = useState<ValueEntry>({ label: VALUE_CATEGORIES[0], value: '' })
 
-  const sortedCommitments = useMemo(() => {
+  const sorted = useMemo(() => {
     return [...commitments].sort((a, b) => {
-      const aVal = sortField === "workItem" ? (a.workItem ?? "").toLowerCase() : (a[sortField] ?? "")
-      const bVal = sortField === "workItem" ? (b.workItem ?? "").toLowerCase() : (b[sortField] ?? "")
-      if (aVal === bVal) return 0
-      const order = aVal < bVal ? -1 : 1
-      return sortDirection === "asc" ? order : -order
+      const av = sortField === 'workItem' ? (a.workItem ?? '').toLowerCase() : (a[sortField] ?? '')
+      const bv = sortField === 'workItem' ? (b.workItem ?? '').toLowerCase() : (b[sortField] ?? '')
+      if (av === bv) return 0
+      const ord = av < bv ? -1 : 1
+      return sortDir === 'asc' ? ord : -ord
     })
-  }, [commitments, sortField, sortDirection])
+  }, [commitments, sortField, sortDir])
 
-  function handleField(field: keyof BusinessCommitmentOneFormState, val: string) {
-    setForm((prev) => ({ ...prev, [field]: val }))
+  function openCreate() {
+    setEditingId(null)
+    setForm(emptyBusinessCommitmentForm())
+    setValueEntry({ label: VALUE_CATEGORIES[0], value: '' })
+    setError(null)
+    setModalOpen(true)
+  }
+
+  function openEdit(c: BusinessCommitmentOne) {
+    setEditingId(c.id!)
+    setForm(toFormState(c))
+    setValueEntry({ label: VALUE_CATEGORIES[0], value: '' })
+    setError(null)
+    setModalOpen(true)
+  }
+
+  function closeModal() {
+    setModalOpen(false)
+    setEditingId(null)
+    setForm(emptyBusinessCommitmentForm())
+    setError(null)
+  }
+
+  function setField<K extends keyof BusinessCommitmentOneFormState>(k: K, v: BusinessCommitmentOneFormState[K]) {
+    setForm((p) => ({ ...p, [k]: v }))
   }
 
   function addValueEntry() {
-    if (!valueEntry.label || !valueEntry.value) return
-    setForm((prev) => ({ ...prev, valueEntryList: [...(prev.valueEntryList ?? []), valueEntry] }))
-    setValueEntry({ label: '', value: '' })
+    if (!valueEntry.label || !valueEntry.value.trim()) return
+    setForm((p) => ({ ...p, valueEntryList: [...(p.valueEntryList ?? []), { ...valueEntry }] }))
+    setValueEntry((v) => ({ ...v, value: '' }))
   }
 
-  function removeValueEntry(index: number) {
-    setForm((prev) => ({
-      ...prev,
-      valueEntryList: prev.valueEntryList?.filter((_, i) => i !== index)
-    }))
+  function removeValueEntry(i: number) {
+    setForm((p) => ({ ...p, valueEntryList: p.valueEntryList?.filter((_, j) => j !== i) }))
   }
 
-  async function handleCreate(e?: React.FormEvent) {
-    e?.preventDefault()
-    setLoading(true)
-    setError(null)
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    if (!form.workItem.trim()) { setError('Work item is required.'); return }
+    setLoading(true); setError(null)
     try {
-      if (editingId) {
+      if (editingId != null) {
         const updated = await updateBusinessCommitmentOne(editingId, toApiPayload(form))
-        setCommitments((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
-        setEditingId(null)
-        setForm(emptyForm())
+        setCommitments((p) => p.map((c) => (c.id === editingId ? updated : c)))
       } else {
         const created = await createCommitmentOne(toApiPayload(form))
-        setCommitments((prev) => [...prev, created])
-        setForm(emptyForm())
+        setCommitments((p) => [created, ...p])
       }
+      closeModal()
     } catch {
-      setError(editingId ? 'Failed to save changes' : 'Failed to create commitment')
+      setError('Could not save.')
     } finally {
       setLoading(false)
     }
   }
 
-  function startEdit(commitment: BusinessCommitmentOne) {
-    setEditingId(commitment.id!)
-    setForm(toFormState(commitment))
-  }
-
-  function cancelEdit() {
-    setEditingId(null)
-    setForm(emptyForm())
-  }
-
   async function handleDelete(id: number) {
+    setLoading(true)
     try {
       await deleteCommitmentOne(id)
-      setCommitments((prev) => prev.filter((c) => c.id !== id))
-    } catch {
-      setError('Failed to delete commitment')
+      setCommitments((p) => p.filter((c) => c.id !== id))
+      if (editingId === id) closeModal()
+    } finally {
+      setLoading(false)
     }
   }
 
   return (
-    <div className="space-y-8">
+    <div className="flex flex-col gap-6">
       <DocComp
         cardTitle="Business Partner Impact"
         cardDescription="Deliver measurable business impact through your Business Partner assignment."
         goals="Share at least three accomplishments and clearly describe how each one added business value (e.g., improved outcomes, increased efficiency, reduced risk/cost, or enhanced customer/employee experience)."
         validationCriteria={[
           'Recorded at least three distinct accomplishments during Business Partner assignment.',
-          'For each accomplishment: what you did, the problem/opportunity, who benefited, why it mattered, measurable impact, and value category.'
+          'For each accomplishment: what you did, the problem/opportunity, who benefited, why it mattered, measurable impact, and value category.',
         ]}
         tips={[
           'Ask your Business Partners what key deliverables they expect this year.',
-          'Think how your work ties to ATS transformational initiatives and 2026 priorities.'
+          'Think how your work ties to ATS transformational initiatives and 2026 priorities.',
         ]}
-      ></DocComp>
+      />
 
-      <CardComp
-        title={editingId ? 'Edit BP Impact Commitment' : 'New  BP Impact Commitment'}
-        description="Deliver measurable business impact through your Business Partner assignment."
-        onCancel={cancelEdit}
-        onSave={() => handleCreate()}
-        onExportToPdf={() => exportBcomm1ToPdf(commitments)}
-        onExportToMarkdown={() => exportEachBcomm1ToMarkdown(commitments)}
-      >
-        <form onSubmit={handleCreate} className="flex flex-col gap-4">
-          <Label>Work item</Label>
-          <Input
-            required
-            className="w-full"
-            placeholder="Work item *"
-            value={form.workItem}
-            onChange={(e) => handleField('workItem', e.target.value)}
-          />
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button onClick={openCreate}><Plus className="h-4 w-4" />New commitment</Button>
+        <span className="text-sm font-medium text-muted-foreground">Sort by</span>
+        <Select value={sortField} onValueChange={(v) => setSortField(v as SortField)}>
+          <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="started">Date started</SelectItem>
+            <SelectItem value="dateCompleted">Date completed</SelectItem>
+            <SelectItem value="workItem">Work item</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={sortDir} onValueChange={(v) => setSortDir(v as SortDir)}>
+          <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="asc">Ascending</SelectItem>
+            <SelectItem value="desc">Descending</SelectItem>
+          </SelectContent>
+        </Select>
+        <div className="ml-auto flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => void exportBcomm1ToPdf(commitments)}>Export PDF</Button>
+          <Button variant="outline" size="sm" onClick={() => void exportEachBcomm1ToMarkdown(commitments)}>Export MD</Button>
+        </div>
+      </div>
 
-          <Label>Application context</Label>
-          <Input
-            placeholder="Application context"
-            className="w-full"
-            value={form.applicationContext}
-            onChange={(e) => handleField('applicationContext', e.target.value)}
-          />
+      {/* Table */}
+      {sorted.length === 0 ? (
+        <div className="rounded-lg border border-dashed py-12 text-center">
+          <p className="text-sm text-muted-foreground">No commitments yet. Click <strong>New commitment</strong> to add one.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/60 text-left">
+              <tr>
+                <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">Work Item</th>
+                <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">Started</th>
+                <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">Completed</th>
+                <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">Values</th>
+                <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((c) => {
+                const valueList = Array.isArray(c.valueCategories) ? (c.valueCategories as unknown as ValueEntry[]) : []
+                return (
+                  <tr
+                    key={c.id}
+                    onClick={() => openEdit(c)}
+                    tabIndex={0}
+                    role="button"
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEdit(c) } }}
+                    className="cursor-pointer border-t border-border transition hover:bg-muted/40 focus:bg-muted/40 focus:outline-none"
+                  >
+                    <td className="max-w-xs px-4 py-3 font-medium">
+                      <p className="truncate">{c.workItem}</p>
+                      {c.applicationContext && <p className="truncate text-xs text-muted-foreground">{c.applicationContext}</p>}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{c.started ?? '—'}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{c.dateCompleted ?? '—'}</td>
+                    <td className="px-4 py-3">
+                      {valueList.length > 0 && (
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                          {valueList.length} entr{valueList.length === 1 ? 'y' : 'ies'}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="icon-xs" aria-label="Edit" onClick={(e) => { e.stopPropagation(); openEdit(c) }}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon-xs" aria-label="Delete" onClick={(e) => { e.stopPropagation(); void handleDelete(c.id!) }}>
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-          <Label>Description</Label>
-          <Textarea
-            placeholder="Description"
-            value={form.description}
-            onChange={(e) => handleField('description', e.target.value)}
-            rows={2}
-            className="w-full"
-          />
-
-          <Label>Problem / Opportunity</Label>
-          <Textarea
-            placeholder="Problem / Opportunity"
-            value={form.problemOpportunity}
-            onChange={(e) => handleField('problemOpportunity', e.target.value)}
-            rows={2}
-            className="w-full"
-          />
-
-          <Label>Who benefited</Label>
-          <Textarea
-            placeholder="Who benefited"
-            value={form.whoBenefited}
-            onChange={(e) => handleField('whoBenefited', e.target.value)}
-            rows={2}
-            className="w-full"
-          />
-
-          <Label>Impact</Label>
-          <Textarea
-            placeholder="Impact"
-            value={form.impact}
-            onChange={(e) => handleField('impact', e.target.value)}
-            rows={2}
-            className="w-full"
-          />
-
-          <Label>Alignment</Label>
-          <Input
-            placeholder="Alignment"
-            className="w-full"
-            value={form.alignment}
-            onChange={(e) => handleField('alignment', e.target.value)}
-          />
-
-          <Label>Status notes</Label>
-          <Textarea
-            placeholder="Status notes"
-            value={form.statusNotes}
-            onChange={(e) => handleField('statusNotes', e.target.value)}
-            rows={2}
-            className="w-full"
-          />
-
-          <Label>Date started</Label>
-          <Input
-            className="w-full"
-            type="date"
-            value={form.started}
-            onChange={(e) => handleField('started', e.target.value)}
-          />
-
-          <Label>Date completed</Label>
-          <Input
-            className="w-full"
-            type="date"
-            value={form.dateCompleted}
-            onChange={(e) => handleField('dateCompleted', e.target.value)}
-          />
-
-          <div className="flex flex-col gap-4">
-            <span className="text-sm font-medium">Value entries</span>
-            {form.valueEntryList?.map((ve, i) => (
-              <div key={i} className="flex items-center gap-2 text-sm">
-                <span className="font-medium">{ve.label}:</span>
-                <span>{ve.value}</span>
-                <button
-                  type="button"
-                  onClick={() => removeValueEntry(i)}
-                  className="ml-auto text-red-500"
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
-
-            <div className="grid gap-4">
-              <div className="flex flex-col gap-2">
-                <Label>Category</Label>
-                <Select
-                  value={valueEntry.label ?? ''}
-                  onValueChange={(val) => setValueEntry((v) => ({ ...v, label: val }))}
-                >
-                  <SelectTrigger className="w-full rounded-[10px] border-[#4B5563]">
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent className="mt-2">
-                    {VALUE_CATEGORIES.map((opt) => (
-                      <SelectItem key={opt} value={opt}>
-                        {opt}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Label>Details</Label>
-                <Textarea
-                  placeholder="Describe the accomplishment and impact"
-                  value={valueEntry.value}
-                  onChange={(e) => setValueEntry((v) => ({ ...v, value: e.target.value }))}
-                  rows={3}
-                  className="w-full"
-                />
-              </div>
-
-              <div className="flex justify-end">
-                <button type="button" onClick={addValueEntry} className="rounded border px-3 py-2">
-                  + Add
-                </button>
-              </div>
+      {/* Modal */}
+      <Dialog.Root open={modalOpen} onOpenChange={(v) => { if (!v) closeModal() }}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" />
+          <Dialog.Content
+            aria-describedby={undefined}
+            className="fixed left-1/2 top-1/2 z-50 flex max-h-[88vh] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl border border-border bg-card shadow-xl focus:outline-none"
+          >
+            <div className="flex items-center justify-between border-b border-border px-6 py-4">
+              <Dialog.Title className="text-lg font-semibold">
+                {editingId != null ? 'Edit commitment' : 'New commitment'}
+              </Dialog.Title>
+              <Dialog.Close asChild>
+                <Button variant="ghost" size="icon-xs" aria-label="Close"><X className="h-4 w-4" /></Button>
+              </Dialog.Close>
             </div>
-          </div>
-          {error && <p className="text-red-500">{error}</p>}
-        </form>
-      </CardComp>
 
-      <div className="flex items-center gap-2">
-        <label className="text-sm font-medium">Sort by:</label>
-        <select
-          value={sortField}
-          onChange={(e) => setSortField(e.target.value as "started" | "dateCompleted" | "workItem")}
-          className="rounded border px-2 py-1 text-sm"
-        >
-          <option value="started">Date started</option>
-          <option value="dateCompleted">Date completed</option>
-          <option value="workItem">Work item</option>
-        </select>
-        <button
-          type="button"
-          onClick={() => setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"))}
-          className="rounded border px-3 py-1.5 text-sm hover:bg-accent"
-        >
-          {sortDirection === "asc" ? "Ascending" : "Descending"}
-        </button>
-      </div>
+            <form onSubmit={(e) => void handleSubmit(e)} className="flex min-h-0 flex-1 flex-col">
+              <div className="flex flex-col gap-3 overflow-y-auto px-6 py-4">
+                <Field label="Work item *">
+                  <Input value={form.workItem} onChange={(e) => setField('workItem', e.target.value)} required />
+                </Field>
+                <Field label="Application context">
+                  <Input value={form.applicationContext ?? ''} onChange={(e) => setField('applicationContext', e.target.value)} />
+                </Field>
+                <Field label="Description">
+                  <Textarea rows={2} value={form.description ?? ''} onChange={(e) => setField('description', e.target.value)} />
+                </Field>
+                <Field label="Problem / Opportunity">
+                  <Textarea rows={2} value={form.problemOpportunity ?? ''} onChange={(e) => setField('problemOpportunity', e.target.value)} />
+                </Field>
+                <Field label="Who benefited">
+                  <Textarea rows={2} value={form.whoBenefited ?? ''} onChange={(e) => setField('whoBenefited', e.target.value)} />
+                </Field>
+                <Field label="Impact">
+                  <Textarea rows={2} value={form.impact ?? ''} onChange={(e) => setField('impact', e.target.value)} />
+                </Field>
+                <Field label="Alignment">
+                  <Input value={form.alignment ?? ''} onChange={(e) => setField('alignment', e.target.value)} />
+                </Field>
+                <Field label="Status notes">
+                  <Textarea rows={2} value={form.statusNotes ?? ''} onChange={(e) => setField('statusNotes', e.target.value)} />
+                </Field>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Date started">
+                    <Input type="date" value={form.started ?? ''} onChange={(e) => setField('started', e.target.value)} />
+                  </Field>
+                  <Field label="Date completed">
+                    <Input type="date" value={form.dateCompleted ?? ''} onChange={(e) => setField('dateCompleted', e.target.value)} />
+                  </Field>
+                </div>
 
-      <div className="grid gap-4">
-        {sortedCommitments.map((c) => (
-          <Card key={c.id} className="shadow-sm">
-            <CardHeader>
-              <CardTitle>{c.workItem}</CardTitle>
-              <CardDescription className="text-sm text-muted-foreground">
-                {c.applicationContext}
-              </CardDescription>
-            </CardHeader>
+                {/* Value entries */}
+                <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
+                  <span className="text-sm font-medium">Value entries</span>
+                  {(form.valueEntryList ?? []).map((ve, i) => (
+                    <div key={i} className="flex items-center gap-2 rounded bg-muted/40 px-3 py-1.5 text-sm">
+                      <span className="font-medium">{ve.label}:</span>
+                      <span className="min-w-0 flex-1 truncate text-muted-foreground">{ve.value}</span>
+                      <Button type="button" variant="ghost" size="icon-xs" onClick={() => removeValueEntry(i)}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Select value={valueEntry.label} onValueChange={(v) => setValueEntry((p) => ({ ...p, label: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {VALUE_CATEGORIES.map((cat) => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Textarea rows={2} placeholder="Describe the accomplishment and impact" value={valueEntry.value} onChange={(e) => setValueEntry((p) => ({ ...p, value: e.target.value }))} />
+                  <Button type="button" variant="outline" size="sm" className="self-end" onClick={addValueEntry}>
+                    <Plus className="h-4 w-4" />Add entry
+                  </Button>
+                </div>
 
-            <CardContent>
-              <p className="mb-2 text-sm">{c.description}</p>
-              <div className="text-xs text-muted-foreground">
-                Started: {c.started ?? '-'} • Completed: {c.dateCompleted ?? '-'}
+                {error && <p className="text-sm text-destructive">{error}</p>}
               </div>
-            </CardContent>
 
-            <CardFooter>
-              <div className="ml-auto flex gap-2">
-                <button
-                  onClick={() => exportSingleBcomm1ToMarkdown(c)}
-                  className="rounded border px-3 py-1 text-sm hover:bg-accent"
-                >
-                  Export Markdown
-                </button>
-                <button
-                  onClick={() => startEdit(c)}
-                  className="rounded border px-3 py-1 text-sm hover:bg-accent"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => handleDelete(c.id!)}
-                  className="rounded border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50"
-                >
-                  Delete
-                </button>
+              <div className="flex items-center gap-2 border-t border-border px-6 py-4">
+                {editingId != null && (
+                  <Button type="button" variant="destructive" size="sm" disabled={loading} onClick={() => void handleDelete(editingId)}>
+                    <Trash2 className="h-4 w-4" />Delete
+                  </Button>
+                )}
+                <div className="ml-auto flex gap-2">
+                  <Button type="button" variant="outline" onClick={closeModal} disabled={loading}>Cancel</Button>
+                  <Button type="submit" disabled={loading}>{editingId != null ? 'Save changes' : 'Add commitment'}</Button>
+                </div>
               </div>
-            </CardFooter>
-          </Card>
-        ))}
-      </div>
+            </form>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   )
 }

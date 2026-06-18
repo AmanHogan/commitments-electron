@@ -20,6 +20,7 @@ import FlashcardStarredPage from './pages/FlashcardStarredPage'
 import FlashcardSkillsPage from './pages/FlashcardSkillsPage'
 import NotesPage from './pages/NotesPage'
 import NoteGroupPage from './pages/NoteGroupPage'
+import ProgressionsPage from './pages/ProgressionsPage'
 import ReminderToast from './components/ReminderToast'
 import StartupBriefing from './components/StartupBriefing'
 
@@ -72,6 +73,7 @@ export default function App() {
           <Route path="/flashcards/skills" element={<FlashcardSkillsPage />} />
           <Route path="/notes" element={<NotesPage />} />
           <Route path="/notes/:id" element={<NoteGroupPage />} />
+          <Route path="/dashboard/progressions" element={<ProgressionsPage />} />
           <Route path="/docs/tdp" element={<TdpDocsPage />} />
         </Routes>
       </Layout>

@@ -99,6 +99,12 @@ const api = {
     updateLabel: (id: number, label: string) => ipcRenderer.invoke('resumeFiles:updateLabel', id, label),
     delete: (id: number) => ipcRenderer.invoke('resumeFiles:delete', id)
   },
+  progressions: {
+    getAll: () => ipcRenderer.invoke('progressions:getAll'),
+    create: (payload: unknown) => ipcRenderer.invoke('progressions:create', payload),
+    update: (id: number, payload: unknown) => ipcRenderer.invoke('progressions:update', id, payload),
+    delete: (id: number) => ipcRenderer.invoke('progressions:delete', id),
+  },
   data: {
     saveJson: (suggestedName: string, content: string) => ipcRenderer.invoke('data:saveJson', suggestedName, content),
     readJson: () => ipcRenderer.invoke('data:readJson')

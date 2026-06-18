@@ -98,6 +98,12 @@ interface DbApi {
     updateLabel: (id: number, label: string) => Promise<unknown>
     delete: (id: number) => Promise<void>
   }
+  progressions: {
+    getAll: () => Promise<unknown[]>
+    create: (payload: unknown) => Promise<unknown>
+    update: (id: number, payload: unknown) => Promise<unknown>
+    delete: (id: number) => Promise<void>
+  }
   data: {
     saveJson: (suggestedName: string, content: string) => Promise<boolean>
     readJson: () => Promise<string | null>

@@ -62,11 +62,23 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     eventName TEXT NOT NULL,
     type TEXT,
+    applicationContext TEXT,
     description TEXT,
+    impact TEXT,
     started TEXT,
     finished TEXT,
     done INTEGER DEFAULT 0,
     required INTEGER DEFAULT 0,
+    createdAt TEXT DEFAULT (datetime('now')),
+    updatedAt TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS progressions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    businessEntries TEXT DEFAULT '[]',
+    programEntries TEXT DEFAULT '[]',
+    developmentEntries TEXT DEFAULT '[]',
     createdAt TEXT DEFAULT (datetime('now')),
     updatedAt TEXT DEFAULT (datetime('now'))
   );
@@ -91,7 +103,9 @@ db.exec(`
     started TEXT,
     finished TEXT,
     required INTEGER DEFAULT 0,
+    applicationContext TEXT,
     description TEXT,
+    impact TEXT,
     createdAt TEXT DEFAULT (datetime('now')),
     updatedAt TEXT DEFAULT (datetime('now'))
   );
@@ -230,6 +244,10 @@ try { db.exec("ALTER TABLE skills ADD COLUMN tags TEXT DEFAULT '[]'") } catch { 
 try { db.exec("ALTER TABLE action_items ADD COLUMN dueDate TEXT") } catch { /* already exists */ }
 try { db.exec("ALTER TABLE action_items ADD COLUMN dueTime TEXT") } catch { /* already exists */ }
 try { db.exec("ALTER TABLE action_items ADD COLUMN reminderSnoozedUntil TEXT") } catch { /* already exists */ }
+try { db.exec("ALTER TABLE business_commitments_two ADD COLUMN applicationContext TEXT") } catch { /* already exists */ }
+try { db.exec("ALTER TABLE business_commitments_two ADD COLUMN impact TEXT") } catch { /* already exists */ }
+try { db.exec("ALTER TABLE development_commitments_two ADD COLUMN applicationContext TEXT") } catch { /* already exists */ }
+try { db.exec("ALTER TABLE development_commitments_two ADD COLUMN impact TEXT") } catch { /* already exists */ }
 
 const BOOL_COLS = new Set([
   'improvedOutcomes', 'increasedEfficiency', 'reducedRiskCost',
@@ -364,12 +382,12 @@ export const dcomm2 = {
   getAll: () => normalizeAll(db.prepare('SELECT * FROM development_commitments_two ORDER BY createdAt DESC').all() as Record<string, unknown>[]),
   create: (p_raw: Record<string, unknown>) => {
     const p = sanitize(p_raw)
-    const r = db.prepare('INSERT INTO development_commitments_two (eventName,type,description,started,finished,done,required) VALUES (?,?,?,?,?,?,?)').run(p.eventName,p.type??null,p.description??null,p.started??null,p.finished??null,p.done??0,p.required??0)
+    const r = db.prepare('INSERT INTO development_commitments_two (eventName,type,applicationContext,description,impact,started,finished,done,required) VALUES (?,?,?,?,?,?,?,?,?)').run(p.eventName,p.type??null,p.applicationContext??null,p.description??null,p.impact??null,p.started??null,p.finished??null,p.done??0,p.required??0)
     return normalize(db.prepare('SELECT * FROM development_commitments_two WHERE id=?').get(r.lastInsertRowid) as Record<string, unknown>)
   },
   update: (id: number, p_raw: Record<string, unknown>) => {
     const p = sanitize(p_raw)
-    db.prepare("UPDATE development_commitments_two SET eventName=?,type=?,description=?,started=?,finished=?,done=?,required=?,updatedAt=datetime('now') WHERE id=?").run(p.eventName,p.type??null,p.description??null,p.started??null,p.finished??null,p.done??0,p.required??0,id)
+    db.prepare("UPDATE development_commitments_two SET eventName=?,type=?,applicationContext=?,description=?,impact=?,started=?,finished=?,done=?,required=?,updatedAt=datetime('now') WHERE id=?").run(p.eventName,p.type??null,p.applicationContext??null,p.description??null,p.impact??null,p.started??null,p.finished??null,p.done??0,p.required??0,id)
     return normalize(db.prepare('SELECT * FROM development_commitments_two WHERE id=?').get(id) as Record<string, unknown>)
   },
   delete: (id: number) => { db.prepare('DELETE FROM development_commitments_two WHERE id=?').run(id) },
@@ -399,13 +417,13 @@ export const bcomm2 = {
   },
   create: (p_raw: Record<string, unknown>) => {
     const p = sanitize(p_raw)
-    const r = db.prepare('INSERT INTO business_commitments_two (eventName,type,done,started,finished,required,description) VALUES (?,?,?,?,?,?,?)').run(p.eventName,p.type??null,p.done??0,p.started??null,p.finished??null,p.required??0,p.description??null)
+    const r = db.prepare('INSERT INTO business_commitments_two (eventName,type,done,started,finished,required,applicationContext,description,impact) VALUES (?,?,?,?,?,?,?,?,?)').run(p.eventName,p.type??null,p.done??0,p.started??null,p.finished??null,p.required??0,p.applicationContext??null,p.description??null,p.impact??null)
     const ev = normalize(db.prepare('SELECT * FROM business_commitments_two WHERE id=?').get(r.lastInsertRowid) as Record<string, unknown>)
     return { ...ev, subEvents: [] }
   },
   update: (id: number, p_raw: Record<string, unknown>) => {
     const p = sanitize(p_raw)
-    db.prepare("UPDATE business_commitments_two SET eventName=?,type=?,done=?,started=?,finished=?,required=?,description=?,updatedAt=datetime('now') WHERE id=?").run(p.eventName,p.type??null,p.done??0,p.started??null,p.finished??null,p.required??0,p.description??null,id)
+    db.prepare("UPDATE business_commitments_two SET eventName=?,type=?,done=?,started=?,finished=?,required=?,applicationContext=?,description=?,impact=?,updatedAt=datetime('now') WHERE id=?").run(p.eventName,p.type??null,p.done??0,p.started??null,p.finished??null,p.required??0,p.applicationContext??null,p.description??null,p.impact??null,id)
     return normalize(db.prepare('SELECT * FROM business_commitments_two WHERE id=?').get(id) as Record<string, unknown>)
   },
   delete: (id: number) => { db.prepare('DELETE FROM business_commitments_two WHERE id=?').run(id) },
@@ -690,4 +708,42 @@ export const skills = {
     return normalize(db.prepare('SELECT * FROM skills WHERE id=?').get(id) as Record<string, unknown>)
   },
   delete: (id: number) => { db.prepare('DELETE FROM skills WHERE id=?').run(id) }
+}
+
+// ─── Progressions ─────────────────────────────────────────────────────────────
+
+function parseProgressionRow(row: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...row,
+    businessEntries: (() => { try { return JSON.parse(row.businessEntries as string) } catch { return [] } })(),
+    programEntries: (() => { try { return JSON.parse(row.programEntries as string) } catch { return [] } })(),
+    developmentEntries: (() => { try { return JSON.parse(row.developmentEntries as string) } catch { return [] } })(),
+  }
+}
+
+export const progressions = {
+  getAll: () => {
+    const rows = db.prepare('SELECT * FROM progressions ORDER BY updatedAt DESC').all() as Record<string, unknown>[]
+    return rows.map(parseProgressionRow)
+  },
+  create: (p: Record<string, unknown>) => {
+    const r = db.prepare('INSERT INTO progressions (title,businessEntries,programEntries,developmentEntries) VALUES (?,?,?,?)').run(
+      p.title,
+      JSON.stringify(Array.isArray(p.businessEntries) ? p.businessEntries : []),
+      JSON.stringify(Array.isArray(p.programEntries) ? p.programEntries : []),
+      JSON.stringify(Array.isArray(p.developmentEntries) ? p.developmentEntries : []),
+    )
+    return parseProgressionRow(db.prepare('SELECT * FROM progressions WHERE id=?').get(r.lastInsertRowid) as Record<string, unknown>)
+  },
+  update: (id: number, p: Record<string, unknown>) => {
+    db.prepare("UPDATE progressions SET title=?,businessEntries=?,programEntries=?,developmentEntries=?,updatedAt=datetime('now') WHERE id=?").run(
+      p.title,
+      JSON.stringify(Array.isArray(p.businessEntries) ? p.businessEntries : []),
+      JSON.stringify(Array.isArray(p.programEntries) ? p.programEntries : []),
+      JSON.stringify(Array.isArray(p.developmentEntries) ? p.developmentEntries : []),
+      id,
+    )
+    return parseProgressionRow(db.prepare('SELECT * FROM progressions WHERE id=?').get(id) as Record<string, unknown>)
+  },
+  delete: (id: number) => { db.prepare('DELETE FROM progressions WHERE id=?').run(id) }
 }

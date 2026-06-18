@@ -1,6 +1,12 @@
-
-import { useMemo, useState } from "react"
-import type { BusinessCommitmentTwo, CreateBusinessCommitmentTwoDTO, SubEvent, CreateSubEventDTO } from "@/types/types"
+import { useMemo, useState, type FormEvent } from 'react'
+import { Dialog } from 'radix-ui'
+import { Trash2, Pencil, Plus, X } from 'lucide-react'
+import type {
+  BusinessCommitmentTwo,
+  CreateBusinessCommitmentTwoDTO,
+  SubEvent,
+  CreateSubEventDTO,
+} from '@/types/types'
 import {
   createBusinessCommitmentTwo,
   updateBusinessCommitmentTwo,
@@ -8,47 +14,56 @@ import {
   createSubEventForBcomm2,
   updateBcomm2SubEvent,
   deleteBcomm2SubEvent,
-} from "@/lib/actions"
-import { Input } from "./ui/input"
-import { Textarea } from "./ui/textarea"
-import { Label } from "./ui/label"
-import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "./ui/card"
-import DocComp from "./ui/doc-comp"
-import { exportBcomm2ToMarkdown } from "@/lib/utils/export-markdown"
-import { exportBcomm2ToPdf } from "@/lib/utils/export-pdf"
+} from '@/lib/actions'
+import { exportBcomm2ToPdf } from '@/lib/utils/export-pdf'
+import { exportBcomm2ToMarkdown } from '@/lib/utils/export-markdown'
+import DocComp from './ui/doc-comp'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
+import { Label } from './ui/label'
+import { Textarea } from './ui/textarea'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select'
 
-type Props = {
-  initialEvents: BusinessCommitmentTwo[]
+type SortField = 'started' | 'finished' | 'eventName'
+type SortDir = 'asc' | 'desc'
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <Label>{label}</Label>
+      {children}
+    </div>
+  )
+}
+
+function DoneBadge({ done }: { done?: boolean }) {
+  if (!done) return null
+  return (
+    <span className="inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800 dark:bg-green-900/40 dark:text-green-300">
+      Done
+    </span>
+  )
 }
 
 const emptyForm = (): CreateBusinessCommitmentTwoDTO => ({
-  eventName: "",
-  type: "",
-  done: false,
-  started: "",
-  finished: "",
-  required: false,
-  description: "",
+  eventName: '', type: '', done: false, started: '', finished: '',
+  required: false, applicationContext: '', description: '', impact: '',
 })
 
-const emptySubEventForm = (): CreateSubEventDTO => ({
-  subEventName: "",
-  description: "",
-  started: "",
-  finished: "",
-  done: false,
+const emptySubForm = (): CreateSubEventDTO => ({
+  subEventName: '', description: '', started: '', finished: '', done: false,
 })
 
-export default function BusinessCommitmentTwoPage({ initialEvents }: Props) {
+type Props = { initialEvents: BusinessCommitmentTwo[] }
+
+export default function BcommTwoPage({ initialEvents }: Props) {
   const [events, setEvents] = useState<BusinessCommitmentTwo[]>(initialEvents)
-  const [form, setForm] = useState<CreateBusinessCommitmentTwoDTO>(emptyForm())
-  const [editingId, setEditingId] = useState<number | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [expandedEventId, setExpandedEventId] = useState<number | null>(null)
-  const [sortField, setSortField] = useState<"started" | "finished" | "eventName">("started")
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
-
   const [subEventsByEvent, setSubEventsByEvent] = useState<Record<number, SubEvent[]>>(() => {
     const map: Record<number, SubEvent[]> = {}
     for (const ev of initialEvents) {
@@ -56,153 +71,132 @@ export default function BusinessCommitmentTwoPage({ initialEvents }: Props) {
     }
     return map
   })
-  const [subEventForm, setSubEventForm] = useState<CreateSubEventDTO>(emptySubEventForm())
-  const [editingSubEventId, setEditingSubEventId] = useState<number | null>(null)
 
-  function handleField(field: keyof CreateBusinessCommitmentTwoDTO, val: string | boolean | undefined) {
-    setForm((prev) => ({ ...prev, [field]: val }))
+  const [form, setForm] = useState<CreateBusinessCommitmentTwoDTO>(emptyForm())
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'details' | 'subevents'>('details')
+
+  const [subForm, setSubForm] = useState<CreateSubEventDTO>(emptySubForm())
+  const [editingSubId, setEditingSubId] = useState<number | null>(null)
+
+  const [sortField, setSortField] = useState<SortField>('started')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
+
+  const sorted = useMemo(() => {
+    return [...events].sort((a, b) => {
+      const av = sortField === 'eventName' ? a.eventName.toLowerCase() : (a[sortField] ?? '')
+      const bv = sortField === 'eventName' ? b.eventName.toLowerCase() : (b[sortField] ?? '')
+      if (av === bv) return 0
+      const ord = av < bv ? -1 : 1
+      return sortDir === 'asc' ? ord : -ord
+    })
+  }, [events, sortField, sortDir])
+
+  function setF<K extends keyof CreateBusinessCommitmentTwoDTO>(k: K, v: CreateBusinessCommitmentTwoDTO[K]) {
+    setForm((p) => ({ ...p, [k]: v }))
   }
 
-  const sortedEvents = useMemo(() => {
-    return [...events].sort((a, b) => {
-      const aValue = sortField === "eventName" ? a.eventName.toLowerCase() : (a[sortField] ?? "")
-      const bValue = sortField === "eventName" ? b.eventName.toLowerCase() : (b[sortField] ?? "")
+  function openCreate() {
+    setEditingId(null); setForm(emptyForm()); setSubForm(emptySubForm())
+    setEditingSubId(null); setActiveTab('details'); setError(null); setModalOpen(true)
+  }
 
-      if (aValue === bValue) return 0
-      const order = aValue < bValue ? -1 : 1
-      return sortDirection === "asc" ? order : -order
+  function openEdit(ev: BusinessCommitmentTwo) {
+    setEditingId(ev.id!)
+    setForm({
+      eventName: ev.eventName, type: ev.type ?? '', done: ev.done ?? false,
+      started: ev.started ?? '', finished: ev.finished ?? '', required: ev.required ?? false,
+      applicationContext: ev.applicationContext ?? '', description: ev.description ?? '',
+      impact: ev.impact ?? '',
     })
-  }, [events, sortField, sortDirection])
+    setSubForm(emptySubForm()); setEditingSubId(null); setActiveTab('details'); setError(null)
+    setModalOpen(true)
+  }
 
-  async function handleSave(e: React.FormEvent) {
+  function closeModal() {
+    setModalOpen(false); setEditingId(null); setForm(emptyForm())
+    setSubForm(emptySubForm()); setEditingSubId(null); setError(null)
+  }
+
+  async function handleSave(e: FormEvent) {
     e.preventDefault()
-    setLoading(true)
-    setError(null)
+    if (!form.eventName.trim()) { setError('Event name is required.'); return }
+    setLoading(true); setError(null)
     try {
-      if (editingId) {
+      if (editingId != null) {
         const updated = await updateBusinessCommitmentTwo(editingId, form)
-        setEvents((prev) => prev.map((ev) => (ev.id === updated.id ? { ...updated, subEvents: ev.subEvents } : ev)))
-        setEditingId(null)
+        setEvents((p) => p.map((ev) => (ev.id === editingId ? { ...updated, subEvents: ev.subEvents } : ev)))
       } else {
         const created = await createBusinessCommitmentTwo(form)
-        setEvents((prev) => [...prev, created])
+        setEvents((p) => [created, ...p])
         if (created.id != null) {
-          setSubEventsByEvent((prev) => ({ ...prev, [created.id!]: created.subEvents ?? [] }))
+          setSubEventsByEvent((p) => ({ ...p, [created.id!]: created.subEvents ?? [] }))
         }
+        closeModal()
+        return
       }
-      setForm(emptyForm())
+      closeModal()
     } catch {
-      setError(editingId ? "Failed to update event" : "Failed to create event")
+      setError('Could not save.')
     } finally {
       setLoading(false)
     }
-  }
-
-  function startEdit(event: BusinessCommitmentTwo) {
-    setEditingId(event.id!)
-    setForm({
-      eventName: event.eventName,
-      type: event.type ?? "",
-      done: event.done ?? false,
-      started: event.started ?? "",
-      finished: event.finished ?? "",
-      required: event.required ?? false,
-      description: event.description ?? "",
-    })
-  }
-
-  function cancelEdit() {
-    setEditingId(null)
-    setForm(emptyForm())
   }
 
   async function handleDelete(id: number) {
+    setLoading(true)
     try {
       await deleteBusinessCommitmentTwo(id)
-      setEvents((prev) => prev.filter((ev) => ev.id !== id))
-      setSubEventsByEvent((prev) => {
-        const next = { ...prev }
-        delete next[id]
-        return next
-      })
-      if (expandedEventId === id) setExpandedEventId(null)
-    } catch {
-      setError("Failed to delete event")
-    }
+      setEvents((p) => p.filter((ev) => ev.id !== id))
+      setSubEventsByEvent((p) => { const n = { ...p }; delete n[id]; return n })
+      if (editingId === id) closeModal()
+    } finally { setLoading(false) }
   }
 
-  async function toggleExpand(event: BusinessCommitmentTwo) {
-    const id = event.id!
-    if (expandedEventId === id) {
-      setExpandedEventId(null)
-    } else {
-      setExpandedEventId(id)
-      setSubEventForm(emptySubEventForm())
-      setEditingSubEventId(null)
-    }
-  }
-
-  function handleSubEventField(field: keyof CreateSubEventDTO, val: string | boolean | undefined) {
-    setSubEventForm((prev) => ({ ...prev, [field]: val }))
-  }
-
-  async function handleSaveSubEvent(e: React.FormEvent, eventId: number) {
+  // Sub-event handlers
+  async function handleSaveSub(e: FormEvent) {
     e.preventDefault()
-    setLoading(true)
-    setError(null)
+    if (!subForm.subEventName.trim() || editingId == null) return
+    setLoading(true); setError(null)
     try {
-      if (editingSubEventId) {
-        const updated = await updateBcomm2SubEvent(editingSubEventId, subEventForm)
-        setSubEventsByEvent((prev) => ({
-          ...prev,
-          [eventId]: prev[eventId].map((s) => (s.id === updated.id ? updated : s)),
+      if (editingSubId != null) {
+        const updated = await updateBcomm2SubEvent(editingSubId, subForm)
+        setSubEventsByEvent((p) => ({
+          ...p,
+          [editingId]: (p[editingId] ?? []).map((s) => (s.id === updated.id ? updated : s)),
         }))
-        setEditingSubEventId(null)
+        setEditingSubId(null)
       } else {
-        const created = await createSubEventForBcomm2(eventId, subEventForm)
-        setSubEventsByEvent((prev) => ({
-          ...prev,
-          [eventId]: [...(prev[eventId] ?? []), created],
-        }))
+        const created = await createSubEventForBcomm2(editingId, subForm)
+        setSubEventsByEvent((p) => ({ ...p, [editingId]: [...(p[editingId] ?? []), created] }))
       }
-      setSubEventForm(emptySubEventForm())
+      setSubForm(emptySubForm())
     } catch {
-      setError(editingSubEventId ? "Failed to update sub-event" : "Failed to create sub-event")
-    } finally {
-      setLoading(false)
-    }
+      setError('Could not save sub-event.')
+    } finally { setLoading(false) }
   }
 
-  function startEditSubEvent(sub: SubEvent) {
-    setEditingSubEventId(sub.id!)
-    setSubEventForm({
-      subEventName: sub.subEventName,
-      description: sub.description ?? "",
-      started: sub.started ?? "",
-      finished: sub.finished ?? "",
-      done: sub.done ?? false,
-    })
-  }
-
-  function cancelEditSubEvent() {
-    setEditingSubEventId(null)
-    setSubEventForm(emptySubEventForm())
-  }
-
-  async function handleDeleteSubEvent(subId: number, eventId: number) {
+  async function handleDeleteSub(subId: number) {
+    if (editingId == null) return
+    setLoading(true)
     try {
       await deleteBcomm2SubEvent(subId)
-      setSubEventsByEvent((prev) => ({
-        ...prev,
-        [eventId]: prev[eventId].filter((s) => s.id !== subId),
-      }))
-    } catch {
-      setError("Failed to delete sub-event")
-    }
+      setSubEventsByEvent((p) => ({ ...p, [editingId]: (p[editingId] ?? []).filter((s) => s.id !== subId) }))
+    } finally { setLoading(false) }
   }
 
+  function startEditSub(sub: SubEvent) {
+    setEditingSubId(sub.id!)
+    setSubForm({ subEventName: sub.subEventName, description: sub.description ?? '', started: sub.started ?? '', finished: sub.finished ?? '', done: sub.done ?? false })
+  }
+
+  const currentSubs = editingId != null ? (subEventsByEvent[editingId] ?? []) : []
+
   return (
-    <div className="space-y-8">
+    <div className="flex flex-col gap-6">
       <DocComp
         cardTitle="TDP Program Impact"
         cardDescription="Build your personal brand by participating in TDP and AT&T opportunities beyond your primary assignment."
@@ -213,269 +207,246 @@ export default function BusinessCommitmentTwoPage({ initialEvents }: Props) {
         ]}
       />
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium">Sort by:</label>
-          <select
-            value={sortField}
-            onChange={(e) => setSortField(e.target.value as "started" | "finished" | "eventName")}
-            className="rounded border px-2 py-1 text-sm"
-          >
-            <option value="started">Date started</option>
-            <option value="finished">Date finished</option>
-            <option value="eventName">Event name</option>
-          </select>
-          <button
-            type="button"
-            onClick={() => setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"))}
-            className="rounded border px-3 py-1.5 text-sm hover:bg-accent"
-          >
-            {sortDirection === "asc" ? "Ascending" : "Descending"}
-          </button>
-        </div>
-
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => exportBcomm2ToPdf(events)}
-            className="rounded border px-3 py-1.5 text-sm hover:bg-accent"
-          >
-            Export PDF
-          </button>
-          <button
-            type="button"
-            onClick={() => exportBcomm2ToMarkdown(events)}
-            className="rounded border px-3 py-1.5 text-sm hover:bg-accent"
-          >
-            Export Markdown
-          </button>
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button onClick={openCreate}><Plus className="h-4 w-4" />New event</Button>
+        <span className="text-sm font-medium text-muted-foreground">Sort by</span>
+        <Select value={sortField} onValueChange={(v) => setSortField(v as SortField)}>
+          <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="started">Date started</SelectItem>
+            <SelectItem value="finished">Date finished</SelectItem>
+            <SelectItem value="eventName">Event name</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={sortDir} onValueChange={(v) => setSortDir(v as SortDir)}>
+          <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="asc">Ascending</SelectItem>
+            <SelectItem value="desc">Descending</SelectItem>
+          </SelectContent>
+        </Select>
+        <div className="ml-auto flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => void exportBcomm2ToPdf(events)}>Export PDF</Button>
+          <Button variant="outline" size="sm" onClick={() => exportBcomm2ToMarkdown(events)}>Export MD</Button>
         </div>
       </div>
-      <Card className="p-0">
-        <form onSubmit={handleSave} className="flex flex-col">
-          <CardHeader className="pt-4">
-            <CardTitle>{editingId ? "Edit Event" : "New Leadership Event"}</CardTitle>
-            <CardDescription>
-              Track your leadership events and create sub-events from a unified card layout.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <Input
-              required
-              placeholder="Event name *"
-              value={form.eventName}
-              onChange={(e) => handleField("eventName", e.target.value)}
-            />
-            <Input placeholder="Type" value={form.type ?? ""} onChange={(e) => handleField("type", e.target.value)} />
-            <Textarea
-              placeholder="Description"
-              value={form.description ?? ""}
-              onChange={(e) => handleField("description", e.target.value)}
-              rows={2}
-            />
-            <div className="flex gap-2">
-              <div className="flex flex-1 flex-col gap-2">
-                <Label className="text-xs">Date started</Label>
-                <Input
-                  type="date"
-                  value={form.started ?? ""}
-                  onChange={(e) => handleField("started", e.target.value)}
-                />
-              </div>
-              <div className="flex flex-1 flex-col gap-2">
-                <Label className="text-xs">Date finished</Label>
-                <Input
-                  type="date"
-                  value={form.finished ?? ""}
-                  onChange={(e) => handleField("finished", e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="flex gap-4 text-sm">
-              <label className="flex items-center gap-1">
-                <input
-                  type="checkbox"
-                  checked={form.done ?? false}
-                  onChange={(e) => handleField("done", e.target.checked)}
-                />
-                Done
-              </label>
-              <label className="flex items-center gap-1">
-                <input
-                  type="checkbox"
-                  checked={form.required ?? false}
-                  onChange={(e) => handleField("required", e.target.checked)}
-                />
-                Required
-              </label>
-            </div>
-            {error && <p className="text-sm text-red-500">{error}</p>}
-          </CardContent>
-          <CardFooter>
-            <div className="flex gap-2">
-              <button type="submit" disabled={loading} className="rounded bg-primary px-4 py-2 text-sm text-primary-foreground hover:opacity-90 disabled:opacity-50">
-                {loading ? "Saving..." : editingId ? "Update Event" : "Add Event"}
-              </button>
-              {editingId && (
-                <button type="button" onClick={cancelEdit} className="rounded border px-4 py-2 text-sm">
-                  Cancel
-                </button>
-              )}
-            </div>
-          </CardFooter>
-        </form>
-      </Card>
 
-      <ul className="space-y-3">
-        {sortedEvents.map((event) => {
-          const isExpanded = expandedEventId === event.id
-          const subs = subEventsByEvent[event.id!] ?? []
-          return (
-            <li key={event.id}>
-              <Card className="shadow-sm">
-                <div className="flex items-start justify-between p-4">
-                  <div className="space-y-0.5">
-                    <CardTitle className="text-base">{event.eventName}</CardTitle>
-                    {event.type && <CardDescription>Type: {event.type}</CardDescription>}
-                    {event.description && <p className="text-sm text-muted-foreground">{event.description}</p>}
-                    <div className="flex gap-3 text-xs text-muted-foreground">
-                      {event.done && <span className="text-green-600">✓ Done</span>}
-                      {event.required && <span>Required</span>}
-                      {event.started && <span>Started: {event.started}</span>}
-                      {event.finished && <span>Finished: {event.finished}</span>}
-                    </div>
-                    <p className="text-xs text-muted-foreground">{subs.length} sub-event(s)</p>
+      {/* Table */}
+      {sorted.length === 0 ? (
+        <div className="rounded-lg border border-dashed py-12 text-center">
+          <p className="text-sm text-muted-foreground">No events yet. Click <strong>New event</strong> to add one.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/60 text-left">
+              <tr>
+                <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">Event Name</th>
+                <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">Type</th>
+                <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">Status</th>
+                <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">Started</th>
+                <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">Finished</th>
+                <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">Sub-events</th>
+                <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((ev) => {
+                const subs = subEventsByEvent[ev.id!] ?? ev.subEvents ?? []
+                return (
+                  <tr
+                    key={ev.id}
+                    onClick={() => openEdit(ev)}
+                    tabIndex={0}
+                    role="button"
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEdit(ev) } }}
+                    className="cursor-pointer border-t border-border transition hover:bg-muted/40 focus:bg-muted/40 focus:outline-none"
+                  >
+                    <td className="max-w-xs px-4 py-3 font-medium">
+                      <p className="truncate">{ev.eventName}</p>
+                      {ev.applicationContext && <p className="truncate text-xs text-muted-foreground">{ev.applicationContext}</p>}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{ev.type ?? '—'}</td>
+                    <td className="px-4 py-3"><DoneBadge done={ev.done} /></td>
+                    <td className="px-4 py-3 text-muted-foreground">{ev.started ?? '—'}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{ev.finished ?? '—'}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{subs.length}</td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="icon-xs" aria-label="Edit" onClick={(e) => { e.stopPropagation(); openEdit(ev) }}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon-xs" aria-label="Delete" onClick={(e) => { e.stopPropagation(); void handleDelete(ev.id!) }}>
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Modal */}
+      <Dialog.Root open={modalOpen} onOpenChange={(v) => { if (!v) closeModal() }}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" />
+          <Dialog.Content
+            aria-describedby={undefined}
+            className="fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl border border-border bg-card shadow-xl focus:outline-none"
+          >
+            {/* Modal header */}
+            <div className="flex items-center justify-between border-b border-border px-6 py-4">
+              <Dialog.Title className="text-lg font-semibold">
+                {editingId != null ? 'Edit event' : 'New event'}
+              </Dialog.Title>
+              <Dialog.Close asChild>
+                <Button variant="ghost" size="icon-xs" aria-label="Close"><X className="h-4 w-4" /></Button>
+              </Dialog.Close>
+            </div>
+
+            {/* Tabs — only show sub-events tab when editing */}
+            {editingId != null && (
+              <div className="flex border-b border-border">
+                {(['details', 'subevents'] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setActiveTab(tab)}
+                    className={`px-6 py-2.5 text-sm font-medium transition ${activeTab === tab ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                  >
+                    {tab === 'details' ? 'Details' : `Sub-events (${currentSubs.length})`}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Details tab */}
+            {activeTab === 'details' && (
+              <form onSubmit={(e) => void handleSave(e)} className="flex min-h-0 flex-1 flex-col">
+                <div className="flex flex-col gap-3 overflow-y-auto px-6 py-4">
+                  <Field label="Event name *">
+                    <Input value={form.eventName} onChange={(e) => setF('eventName', e.target.value)} required />
+                  </Field>
+                  <Field label="Type">
+                    <Input value={form.type ?? ''} onChange={(e) => setF('type', e.target.value)} />
+                  </Field>
+                  <Field label="Application context">
+                    <Textarea rows={2} value={form.applicationContext ?? ''} onChange={(e) => setF('applicationContext', e.target.value)} />
+                  </Field>
+                  <Field label="Description">
+                    <Textarea rows={2} value={form.description ?? ''} onChange={(e) => setF('description', e.target.value)} />
+                  </Field>
+                  <Field label="Impact">
+                    <Textarea rows={2} value={form.impact ?? ''} onChange={(e) => setF('impact', e.target.value)} />
+                  </Field>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Date started">
+                      <Input type="date" value={form.started ?? ''} onChange={(e) => setF('started', e.target.value)} />
+                    </Field>
+                    <Field label="Date finished">
+                      <Input type="date" value={form.finished ?? ''} onChange={(e) => setF('finished', e.target.value)} />
+                    </Field>
                   </div>
-                  <div className="flex shrink-0 flex-col gap-1">
-                    <button
-                      onClick={() => toggleExpand(event)}
-                      className="rounded border px-3 py-1 text-sm hover:bg-accent"
-                    >
-                      {isExpanded ? "Collapse" : "Sub-events"}
-                    </button>
-                    <button
-                      onClick={() => startEdit(event)}
-                      className="rounded border px-3 py-1 text-sm hover:bg-accent"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(event.id!)}
-                      className="rounded border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50"
-                    >
-                      Delete
-                    </button>
+                  <div className="flex gap-4 text-sm">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={form.done ?? false} onChange={(e) => setF('done', e.target.checked)} className="h-4 w-4 rounded" />
+                      Done
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={form.required ?? false} onChange={(e) => setF('required', e.target.checked)} className="h-4 w-4 rounded" />
+                      Required
+                    </label>
+                  </div>
+                  {error && <p className="text-sm text-destructive">{error}</p>}
+                </div>
+                <div className="flex items-center gap-2 border-t border-border px-6 py-4">
+                  {editingId != null && (
+                    <Button type="button" variant="destructive" size="sm" disabled={loading} onClick={() => void handleDelete(editingId)}>
+                      <Trash2 className="h-4 w-4" />Delete
+                    </Button>
+                  )}
+                  <div className="ml-auto flex gap-2">
+                    <Button type="button" variant="outline" onClick={closeModal} disabled={loading}>Cancel</Button>
+                    <Button type="submit" disabled={loading}>{editingId != null ? 'Save changes' : 'Add event'}</Button>
                   </div>
                 </div>
+              </form>
+            )}
 
-                {isExpanded && (
-                  <CardContent className="space-y-4 border-t px-4 pt-3 pb-4">
-                    <form onSubmit={(e) => handleSaveSubEvent(e, event.id!)} className="flex flex-col gap-3">
-                      <div>
-                        <p className="text-sm font-semibold">
-                          {editingSubEventId ? "Edit Sub-event" : "Add Sub-event"}
-                        </p>
-                      </div>
-                      <Input
-                        required
-                        placeholder="Sub-event name *"
-                        value={subEventForm.subEventName}
-                        onChange={(e) => handleSubEventField("subEventName", e.target.value)}
-                      />
-                      <Textarea
-                        placeholder="Description"
-                        value={subEventForm.description ?? ""}
-                        onChange={(e) => handleSubEventField("description", e.target.value)}
-                        rows={2}
-                      />
-                      <div className="flex gap-2">
-                        <div className="flex-1">
-                          <Label className="text-xs">Date started</Label>
-                          <Input
-                            type="date"
-                            value={subEventForm.started ?? ""}
-                            onChange={(e) => handleSubEventField("started", e.target.value)}
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <Label className="text-xs">Date finished</Label>
-                          <Input
-                            type="date"
-                            value={subEventForm.finished ?? ""}
-                            onChange={(e) => handleSubEventField("finished", e.target.value)}
-                          />
-                        </div>
-                      </div>
-                      <label className="flex items-center gap-1 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={subEventForm.done ?? false}
-                          onChange={(e) => handleSubEventField("done", e.target.checked)}
-                        />
-                        Done
-                      </label>
-                      <div className="flex gap-2">
-                        <button
-                          type="submit"
-                          disabled={loading}
-                          className="rounded bg-primary px-3 py-1 text-sm text-primary-foreground hover:opacity-90 disabled:opacity-50"
-                        >
-                          {loading ? "Saving..." : editingSubEventId ? "Update" : "Add Sub-event"}
-                        </button>
-                        {editingSubEventId && (
-                          <button
-                            type="button"
-                            onClick={cancelEditSubEvent}
-                            className="rounded border px-3 py-1 text-sm"
-                          >
-                            Cancel
-                          </button>
-                        )}
-                      </div>
-                    </form>
-
-                    {subs.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No sub-events yet.</p>
-                    ) : (
-                      <ul className="space-y-2">
-                        {subs.map((sub) => (
-                          <li key={sub.id} className="rounded border p-3 text-sm">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="space-y-0.5">
-                                <p className="font-medium">{sub.subEventName}</p>
-                                {sub.description && <p className="text-muted-foreground">{sub.description}</p>}
-                                <div className="flex gap-3 text-xs text-muted-foreground">
-                                  {sub.done && <span className="text-green-600">✓ Done</span>}
-                                  {sub.started && <span>Started: {sub.started}</span>}
-                                  {sub.finished && <span>Finished: {sub.finished}</span>}
-                                </div>
-                              </div>
-                              <div className="flex shrink-0 gap-1">
-                                <button
-                                  onClick={() => startEditSubEvent(sub)}
-                                  className="rounded border px-2 py-1 text-xs hover:bg-accent"
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteSubEvent(sub.id!, event.id!)}
-                                  className="rounded border border-red-300 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
+            {/* Sub-events tab */}
+            {activeTab === 'subevents' && editingId != null && (
+              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4 gap-4">
+                {/* Sub-event form */}
+                <form onSubmit={(e) => void handleSaveSub(e)} className="flex flex-col gap-3 rounded-lg border border-border p-4">
+                  <p className="text-sm font-semibold">{editingSubId != null ? 'Edit sub-event' : 'Add sub-event'}</p>
+                  <Field label="Sub-event name *">
+                    <Input value={subForm.subEventName} onChange={(e) => setSubForm((p) => ({ ...p, subEventName: e.target.value }))} required />
+                  </Field>
+                  <Field label="Description">
+                    <Textarea rows={2} value={subForm.description ?? ''} onChange={(e) => setSubForm((p) => ({ ...p, description: e.target.value }))} />
+                  </Field>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Date started">
+                      <Input type="date" value={subForm.started ?? ''} onChange={(e) => setSubForm((p) => ({ ...p, started: e.target.value }))} />
+                    </Field>
+                    <Field label="Date finished">
+                      <Input type="date" value={subForm.finished ?? ''} onChange={(e) => setSubForm((p) => ({ ...p, finished: e.target.value }))} />
+                    </Field>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer text-sm">
+                    <input type="checkbox" checked={subForm.done ?? false} onChange={(e) => setSubForm((p) => ({ ...p, done: e.target.checked }))} className="h-4 w-4 rounded" />
+                    Done
+                  </label>
+                  {error && <p className="text-sm text-destructive">{error}</p>}
+                  <div className="flex gap-2 justify-end">
+                    {editingSubId != null && (
+                      <Button type="button" variant="outline" size="sm" onClick={() => { setEditingSubId(null); setSubForm(emptySubForm()) }}>Cancel</Button>
                     )}
-                  </CardContent>
+                    <Button type="submit" size="sm" disabled={loading}>
+                      {editingSubId != null ? 'Update' : <><Plus className="h-4 w-4" />Add</>}
+                    </Button>
+                  </div>
+                </form>
+
+                {/* Sub-events list */}
+                {currentSubs.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No sub-events yet.</p>
+                ) : (
+                  <ul className="flex flex-col gap-2">
+                    {currentSubs.map((sub) => (
+                      <li key={sub.id} className="rounded-lg border border-border p-3 text-sm">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="space-y-0.5">
+                            <p className="font-medium">{sub.subEventName}</p>
+                            {sub.description && <p className="text-muted-foreground">{sub.description}</p>}
+                            <div className="flex gap-3 text-xs text-muted-foreground">
+                              {sub.done && <span className="text-green-600">✓ Done</span>}
+                              {sub.started && <span>Started: {sub.started}</span>}
+                              {sub.finished && <span>Finished: {sub.finished}</span>}
+                            </div>
+                          </div>
+                          <div className="flex gap-1 shrink-0">
+                            <Button variant="ghost" size="icon-xs" onClick={() => startEditSub(sub)}><Pencil className="h-3.5 w-3.5" /></Button>
+                            <Button variant="ghost" size="icon-xs" onClick={() => void handleDeleteSub(sub.id!)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
                 )}
-              </Card>
-            </li>
-          )
-        })}
-      </ul>
+
+                <div className="mt-auto flex justify-end border-t border-border pt-4">
+                  <Button variant="outline" onClick={closeModal}>Close</Button>
+                </div>
+              </div>
+            )}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   )
 }

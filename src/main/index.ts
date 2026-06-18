@@ -4,7 +4,7 @@ import { pathToFileURL } from 'url'
 import fs from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import { bcomm1, bcomm2, dcomm1, dcomm2, oneOnOne, actionItems, skills, fcSets, fcCards, fcSkills, imageFiles, resumeFiles, noteGroups, notes } from './database'
+import { bcomm1, bcomm2, dcomm1, dcomm2, oneOnOne, actionItems, skills, fcSets, fcCards, fcSkills, imageFiles, resumeFiles, noteGroups, notes, progressions } from './database'
 
 // Register before app.whenReady
 protocol.registerSchemesAsPrivileged([
@@ -220,6 +220,12 @@ app.whenReady().then(() => {
   ipcMain.handle('actionItems:create', (_, payload) => actionItems.create(payload))
   ipcMain.handle('actionItems:update', (_, id, payload) => actionItems.update(id, payload))
   ipcMain.handle('actionItems:delete', (_, id) => actionItems.delete(id))
+
+  // ─── Progressions ─────────────────────────────────────────────────────────────
+  ipcMain.handle('progressions:getAll', () => progressions.getAll())
+  ipcMain.handle('progressions:create', (_, payload) => progressions.create(payload))
+  ipcMain.handle('progressions:update', (_, id, payload) => progressions.update(id, payload))
+  ipcMain.handle('progressions:delete', (_, id) => progressions.delete(id))
 
   // ─── Skills ───────────────────────────────────────────────────────────────────
   ipcMain.handle('skills:getAll', () => skills.getAll())

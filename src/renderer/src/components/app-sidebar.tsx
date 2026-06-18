@@ -19,13 +19,13 @@ import {
   Briefcase,
   Users,
   CheckSquare,
-  ImageIcon,
   Sparkles,
   FileText,
   Layers,
   Star,
   GraduationCap,
-  NotebookPen
+  TrendingUp,
+  BookMarked,
 } from 'lucide-react'
 
 const navItems = {
@@ -45,16 +45,17 @@ const navItems = {
     { label: 'Resume', href: '/dashboard/resume', icon: FileText }
   ],
   oneOnOne: [{ label: 'One on One Documents', href: '/dashboard/one-on-one', icon: Users }],
+  reviews: [
+    { label: 'Progressions', href: '/dashboard/progressions', icon: TrendingUp },
+  ],
   flashcards: [
     { label: 'Sets', href: '/flashcards/sets', icon: Layers },
     { label: 'Starred', href: '/flashcards/starred', icon: Star },
     { label: 'Skills', href: '/flashcards/skills', icon: GraduationCap }
   ],
-  notes: [{ label: 'Notes', href: '/notes', icon: NotebookPen }],
   other: [
     { label: 'Action Items', href: '/dashboard/action-items', icon: CheckSquare },
-    { label: 'Images', href: '/dashboard/images', icon: ImageIcon },
-    { label: 'TDP Docs', href: '/docs/tdp', icon: BookOpen }
+    { label: 'TDP Docs / Guide', href: '/docs/tdp', icon: BookMarked },
   ]
 }
 
@@ -103,8 +104,8 @@ export function AppSidebar() {
         <SidebarSection title="Business" items={navItems.business} />
         <SidebarSection title="Development" items={navItems.development} />
         <SidebarSection title="One on One Documents" items={navItems.oneOnOne} />
+        <SidebarSection title="Reviews" items={navItems.reviews} />
         <SidebarSection title="Flashcards" items={navItems.flashcards} />
-        <SidebarSection title="Notes" items={navItems.notes} />
         <SidebarSection title="Other" items={navItems.other} />
       </SidebarContent>
     </Sidebar>

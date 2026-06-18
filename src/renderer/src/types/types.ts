@@ -107,7 +107,9 @@ export type DevelopmentCommitmentTwo = {
   id?: number
   eventName: string
   type?: string
+  applicationContext?: string
   description?: string
+  impact?: string
   started?: string
   finished?: string
   done?: boolean
@@ -138,7 +140,9 @@ export type UpdateEventSubItemDTO = Partial<CreateEventSubItemDTO>
 export const emptyDevelopmentCommitmentTwoForm = (): CreateDevelopmentCommitmentTwoDTO => ({
   eventName: "",
   type: "",
+  applicationContext: "",
   description: "",
+  impact: "",
   started: "",
   finished: "",
   done: false,
@@ -163,7 +167,9 @@ export type BusinessCommitmentTwo = {
   started?: string
   finished?: string
   required?: boolean
+  applicationContext?: string
   description?: string
+  impact?: string
   subEvents?: SubEvent[]
   createdAt?: string
   updatedAt?: string
@@ -193,7 +199,9 @@ export const emptyBusinessCommitmentTwoForm = (): CreateBusinessCommitmentTwoDTO
   started: "",
   finished: "",
   required: false,
+  applicationContext: "",
   description: "",
+  impact: "",
 })
 
 // ─── One on One ──────────────────────────────────────────────────────────────
@@ -371,4 +379,44 @@ export type FcSkill = {
   flashCardSetTitle?: string
   createdAt?: string
   updatedAt?: string
+}
+
+// ─── Progressions & STAR ─────────────────────────────────────────────────────
+
+export type StarSourceType = "bcomm1" | "bcomm2" | "dcomm2"
+
+export type StarEntry = {
+  id: string
+  sourceType: StarSourceType | "manual"
+  sourceId?: number
+  title: string
+  situation: string
+  task: string
+  action: string
+  result: string
+}
+
+export type DevelopmentEntry = {
+  id: string
+  sourceId?: number
+  title: string
+  body: string
+  hours?: number
+}
+
+export type Progression = {
+  id: number
+  title: string
+  businessEntries: StarEntry[]
+  programEntries: StarEntry[]
+  developmentEntries: DevelopmentEntry[]
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type SaveProgressionInput = {
+  title: string
+  businessEntries: StarEntry[]
+  programEntries: StarEntry[]
+  developmentEntries: DevelopmentEntry[]
 }
