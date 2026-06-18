@@ -293,18 +293,25 @@ try { db.exec("ALTER TABLE development_commitments_two ADD COLUMN impact TEXT") 
 try { db.exec("ALTER TABLE development_commitments_one ADD COLUMN description TEXT") } catch { /* already exists */ }
 try { db.exec("ALTER TABLE development_commitments_one ADD COLUMN done INTEGER DEFAULT 0") } catch { /* already exists */ }
 
+// NOTE: 'finished' is intentionally NOT a global boolean column. In
+// learning_modules it is a boolean flag, but in development_commitments_two,
+// business_commitments_two, event_sub_items, and sub_events it is a date
+// (TEXT) column. Treating it as a global bool corrupted those dates on read.
+// Use MODULE_BOOL_COLS for learning_modules reads where it really is a bool.
 const BOOL_COLS = new Set([
   'improvedOutcomes', 'increasedEfficiency', 'reducedRiskCost',
   'enhancedCustomerExperience', 'enhancedEmployeeExperience',
-  'finished', 'required', 'done', 'completed', 'successPathwaysUpdated', 'starred'
+  'required', 'done', 'completed', 'successPathwaysUpdated', 'starred'
 ])
+
+const MODULE_BOOL_COLS = new Set([...BOOL_COLS, 'finished'])
 
 const JSON_COLS = new Set(['valueCategories', 'tags'])
 
-function normalize(row: Record<string, unknown>): Record<string, unknown> {
+function normalize(row: Record<string, unknown>, boolCols: Set<string> = BOOL_COLS): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(row)) {
-    if (BOOL_COLS.has(k)) {
+    if (boolCols.has(k)) {
       out[k] = v === 1
     } else if (JSON_COLS.has(k) && typeof v === 'string') {
       try { out[k] = JSON.parse(v) } catch { out[k] = [] }
@@ -315,8 +322,8 @@ function normalize(row: Record<string, unknown>): Record<string, unknown> {
   return out
 }
 
-function normalizeAll(rows: Record<string, unknown>[]): Record<string, unknown>[] {
-  return rows.map(normalize)
+function normalizeAll(rows: Record<string, unknown>[], boolCols: Set<string> = BOOL_COLS): Record<string, unknown>[] {
+  return rows.map((r) => normalize(r, boolCols))
 }
 
 // Sanitize an incoming payload so every boolean becomes 0/1 and every
@@ -402,20 +409,20 @@ export const dcomm1 = {
     return normalize(db.prepare('SELECT * FROM development_commitments_one WHERE id=?').get(id) as Record<string, unknown>)
   },
   delete: (id: number) => { db.prepare('DELETE FROM development_commitments_one WHERE id=?').run(id) },
-  getModules: (itemId: number) => normalizeAll(db.prepare('SELECT * FROM learning_modules WHERE itemId=? ORDER BY createdAt ASC').all(itemId) as Record<string, unknown>[]),
+  getModules: (itemId: number) => normalizeAll(db.prepare('SELECT * FROM learning_modules WHERE itemId=? ORDER BY createdAt ASC').all(itemId) as Record<string, unknown>[], MODULE_BOOL_COLS),
   createModule: (itemId: number, p_raw: Record<string, unknown>) => {
     const p = sanitize(p_raw)
     const r = db.prepare(`
       INSERT INTO learning_modules (itemId,moduleName,type,hours,dateStarted,dateFinished,finished,required,description)
       VALUES (?,?,?,?,?,?,?,?,?)
     `).run(itemId,p.moduleName,p.type??null,p.hours??null,p.dateStarted??null,p.dateFinished??null,p.finished??0,p.required??0,p.description??null)
-    return normalize(db.prepare('SELECT * FROM learning_modules WHERE id=?').get(r.lastInsertRowid) as Record<string, unknown>)
+    return normalize(db.prepare('SELECT * FROM learning_modules WHERE id=?').get(r.lastInsertRowid) as Record<string, unknown>, MODULE_BOOL_COLS)
   },
   updateModule: (moduleId: number, p_raw: Record<string, unknown>) => {
     const p = sanitize(p_raw)
     db.prepare(`UPDATE learning_modules SET moduleName=?,type=?,hours=?,dateStarted=?,dateFinished=?,finished=?,required=?,description=?,updatedAt=datetime('now') WHERE id=?`)
       .run(p.moduleName,p.type??null,p.hours??null,p.dateStarted??null,p.dateFinished??null,p.finished??0,p.required??0,p.description??null,moduleId)
-    return normalize(db.prepare('SELECT * FROM learning_modules WHERE id=?').get(moduleId) as Record<string, unknown>)
+    return normalize(db.prepare('SELECT * FROM learning_modules WHERE id=?').get(moduleId) as Record<string, unknown>, MODULE_BOOL_COLS)
   },
   deleteModule: (moduleId: number) => { db.prepare('DELETE FROM learning_modules WHERE id=?').run(moduleId) }
 }
