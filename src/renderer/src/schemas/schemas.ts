@@ -30,6 +30,7 @@ export const businessCommitmentOneSchema = z.object({
   enhancedEmployeeExperienceText: z.string().optional(),
   alignment: z.string().optional(),
   statusNotes: z.string().optional(),
+  status: commitmentStatusEnum.optional(),
   createdAt: z.string().optional(),
 })
 

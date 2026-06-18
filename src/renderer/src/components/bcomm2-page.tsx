@@ -32,6 +32,7 @@ import {
 
 type SortField = 'started' | 'finished' | 'eventName'
 type SortDir = 'asc' | 'desc'
+type TableTab = 'open' | 'closed'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -84,6 +85,7 @@ export default function BcommTwoPage({ initialEvents }: Props) {
 
   const [sortField, setSortField] = useState<SortField>('started')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [tableTab, setTableTab] = useState<TableTab>('open')
 
   const sorted = useMemo(() => {
     return [...events].sort((a, b) => {
@@ -94,6 +96,10 @@ export default function BcommTwoPage({ initialEvents }: Props) {
       return sortDir === 'asc' ? ord : -ord
     })
   }, [events, sortField, sortDir])
+
+  const openRows = useMemo(() => sorted.filter((ev) => !ev.done), [sorted])
+  const closedRows = useMemo(() => sorted.filter((ev) => ev.done), [sorted])
+  const visibleRows = tableTab === 'open' ? openRows : closedRows
 
   function setF<K extends keyof CreateBusinessCommitmentTwoDTO>(k: K, v: CreateBusinessCommitmentTwoDTO[K]) {
     setForm((p) => ({ ...p, [k]: v }))
@@ -256,10 +262,32 @@ export default function BcommTwoPage({ initialEvents }: Props) {
         </div>
       </div>
 
+      {/* Open / Closed tabs */}
+      <div className="flex border-b border-border">
+        {(['open', 'closed'] as const).map((tab) => {
+          const count = tab === 'open' ? openRows.length : closedRows.length
+          return (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setTableTab(tab)}
+              className={`px-5 py-2.5 text-sm font-medium transition ${tableTab === tab ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              {tab === 'open' ? 'Open' : 'Closed'}
+              <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-xs">{count}</span>
+            </button>
+          )
+        })}
+      </div>
+
       {/* Table */}
-      {sorted.length === 0 ? (
+      {visibleRows.length === 0 ? (
         <div className="rounded-lg border border-dashed py-12 text-center">
-          <p className="text-sm text-muted-foreground">No events yet. Click <strong>New event</strong> to add one.</p>
+          <p className="text-sm text-muted-foreground">
+            {tableTab === 'open'
+              ? <>No open events. Click <strong>New event</strong> to add one.</>
+              : 'No completed events yet. Mark events done in their edit modal.'}
+          </p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border">
@@ -276,7 +304,7 @@ export default function BcommTwoPage({ initialEvents }: Props) {
               </tr>
             </thead>
             <tbody>
-              {sorted.map((ev) => {
+              {visibleRows.map((ev) => {
                 const subs = subEventsByEvent[ev.id!] ?? ev.subEvents ?? []
                 return (
                   <tr

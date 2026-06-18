@@ -291,6 +291,7 @@ try { db.exec("ALTER TABLE business_commitments_two ADD COLUMN impact TEXT") } c
 try { db.exec("ALTER TABLE development_commitments_two ADD COLUMN applicationContext TEXT") } catch { /* already exists */ }
 try { db.exec("ALTER TABLE development_commitments_two ADD COLUMN impact TEXT") } catch { /* already exists */ }
 try { db.exec("ALTER TABLE development_commitments_one ADD COLUMN description TEXT") } catch { /* already exists */ }
+try { db.exec("ALTER TABLE development_commitments_one ADD COLUMN done INTEGER DEFAULT 0") } catch { /* already exists */ }
 
 const BOOL_COLS = new Set([
   'improvedOutcomes', 'increasedEfficiency', 'reducedRiskCost',
@@ -393,11 +394,11 @@ export const bcomm1 = {
 export const dcomm1 = {
   getAll: () => normalizeAll(db.prepare('SELECT * FROM development_commitments_one ORDER BY createdAt DESC').all() as Record<string, unknown>[]),
   create: (p: Record<string, unknown>) => {
-    const r = db.prepare('INSERT INTO development_commitments_one (itemName,description,itemDate) VALUES (?,?,?)').run(p.itemName, p.description??null, p.itemDate??null)
+    const r = db.prepare('INSERT INTO development_commitments_one (itemName,description,itemDate,done) VALUES (?,?,?,?)').run(p.itemName, p.description??null, p.itemDate??null, boolInt(p.done))
     return normalize(db.prepare('SELECT * FROM development_commitments_one WHERE id=?').get(r.lastInsertRowid) as Record<string, unknown>)
   },
   update: (id: number, p: Record<string, unknown>) => {
-    db.prepare("UPDATE development_commitments_one SET itemName=?,description=?,itemDate=?,updatedAt=datetime('now') WHERE id=?").run(p.itemName, p.description??null, p.itemDate??null, id)
+    db.prepare("UPDATE development_commitments_one SET itemName=?,description=?,itemDate=?,done=?,updatedAt=datetime('now') WHERE id=?").run(p.itemName, p.description??null, p.itemDate??null, boolInt(p.done), id)
     return normalize(db.prepare('SELECT * FROM development_commitments_one WHERE id=?').get(id) as Record<string, unknown>)
   },
   delete: (id: number) => { db.prepare('DELETE FROM development_commitments_one WHERE id=?').run(id) },

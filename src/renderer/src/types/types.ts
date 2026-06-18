@@ -58,6 +58,7 @@ export type DevelopmentCommitmentOne = {
   itemName: string
   description?: string
   itemDate?: string
+  done?: boolean
   modules?: LearningModule[]
   createdAt?: string
   updatedAt?: string
@@ -88,7 +89,9 @@ export type UpdateLearningModuleDTO = Partial<CreateLearningModuleDTO>
 
 export const emptyDevelopmentCommitmentOneForm = (): CreateDevelopmentCommitmentOneDTO => ({
   itemName: "",
+  description: "",
   itemDate: "",
+  done: false,
 })
 
 export const emptyLearningModuleForm = (): CreateLearningModuleDTO => ({

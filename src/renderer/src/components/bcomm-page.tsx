@@ -2,7 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react'
 import { Dialog } from 'radix-ui'
 import { Trash2, Pencil, Plus, X, Upload, Download } from 'lucide-react'
 import type { BusinessCommitmentOne, BusinessCommitmentOneFormState, ValueEntry } from '@/types/types'
-import { emptyBusinessCommitmentForm } from '@/types/types'
+import { emptyBusinessCommitmentForm, StatusMap } from '@/types/types'
 import { createCommitmentOne, updateBusinessCommitmentOne, deleteCommitmentOne } from '@/lib/actions'
 import { toFormState, toApiPayload } from '@/lib/mappers/businessCommitmentOneMapper'
 import { exportBcomm1ToPdf } from '@/lib/utils/export-pdf'
@@ -30,6 +30,7 @@ const VALUE_CATEGORIES = [
 
 type SortField = 'started' | 'dateCompleted' | 'workItem'
 type SortDir = 'asc' | 'desc'
+type TableTab = 'open' | 'closed'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -52,6 +53,7 @@ export default function BcommPage({ initialCommitments }: Props) {
   const [sortField, setSortField] = useState<SortField>('started')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [valueEntry, setValueEntry] = useState<ValueEntry>({ label: VALUE_CATEGORIES[0], value: '' })
+  const [tableTab, setTableTab] = useState<TableTab>('open')
 
   const sorted = useMemo(() => {
     return [...commitments].sort((a, b) => {
@@ -62,6 +64,11 @@ export default function BcommPage({ initialCommitments }: Props) {
       return sortDir === 'asc' ? ord : -ord
     })
   }, [commitments, sortField, sortDir])
+
+  const CLOSED_STATUSES = new Set(['COMPLETED', 'FAILED'])
+  const openRows = useMemo(() => sorted.filter((c) => !CLOSED_STATUSES.has(c.status ?? '')), [sorted])
+  const closedRows = useMemo(() => sorted.filter((c) => CLOSED_STATUSES.has(c.status ?? '')), [sorted])
+  const visibleRows = tableTab === 'open' ? openRows : closedRows
 
   function openCreate() {
     setEditingId(null)
@@ -195,10 +202,32 @@ export default function BcommPage({ initialCommitments }: Props) {
         </div>
       </div>
 
+      {/* Open / Closed tabs */}
+      <div className="flex border-b border-border">
+        {(['open', 'closed'] as const).map((tab) => {
+          const count = tab === 'open' ? openRows.length : closedRows.length
+          return (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setTableTab(tab)}
+              className={`px-5 py-2.5 text-sm font-medium transition ${tableTab === tab ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              {tab === 'open' ? 'Open' : 'Closed'}
+              <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-xs">{count}</span>
+            </button>
+          )
+        })}
+      </div>
+
       {/* Table */}
-      {sorted.length === 0 ? (
+      {visibleRows.length === 0 ? (
         <div className="rounded-lg border border-dashed py-12 text-center">
-          <p className="text-sm text-muted-foreground">No commitments yet. Click <strong>New commitment</strong> to add one.</p>
+          <p className="text-sm text-muted-foreground">
+            {tableTab === 'open'
+              ? <>No open commitments. Click <strong>New commitment</strong> to add one.</>
+              : 'No completed or failed commitments yet.'}
+          </p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border">
@@ -206,6 +235,7 @@ export default function BcommPage({ initialCommitments }: Props) {
             <thead className="bg-muted/60 text-left">
               <tr>
                 <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">Work Item</th>
+                <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">Status</th>
                 <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">Started</th>
                 <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">Completed</th>
                 <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">Values</th>
@@ -213,7 +243,7 @@ export default function BcommPage({ initialCommitments }: Props) {
               </tr>
             </thead>
             <tbody>
-              {sorted.map((c) => {
+              {visibleRows.map((c) => {
                 const valueList = Array.isArray(c.valueCategories) ? (c.valueCategories as unknown as ValueEntry[]) : []
                 return (
                   <tr
@@ -227,6 +257,16 @@ export default function BcommPage({ initialCommitments }: Props) {
                     <td className="max-w-xs px-4 py-3 font-medium">
                       <p className="truncate">{c.workItem}</p>
                       {c.applicationContext && <p className="truncate text-xs text-muted-foreground">{c.applicationContext}</p>}
+                    </td>
+                    <td className="px-4 py-3">
+                      {c.status && (
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          c.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                          c.status === 'FAILED' ? 'bg-red-100 text-red-800' :
+                          c.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-800' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>{c.status.replace('_', ' ')}</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{c.started ?? '—'}</td>
                     <td className="px-4 py-3 text-muted-foreground">{c.dateCompleted ?? '—'}</td>
@@ -297,6 +337,16 @@ export default function BcommPage({ initialCommitments }: Props) {
                 </Field>
                 <Field label="Status notes">
                   <Textarea rows={2} value={form.statusNotes ?? ''} onChange={(e) => setField('statusNotes', e.target.value)} />
+                </Field>
+                <Field label="Status">
+                  <Select value={form.status ?? 'IN_PROGRESS'} onValueChange={(v) => setField('status', v as BusinessCommitmentOneFormState['status'])}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {StatusMap.map((s) => (
+                        <SelectItem key={s} value={s}>{s.replace('_', ' ')}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </Field>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Date started">

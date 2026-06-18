@@ -33,6 +33,7 @@ import {
 
 type SortField = 'itemDate' | 'createdAt' | 'itemName'
 type SortDir = 'asc' | 'desc'
+type TableTab = 'open' | 'closed'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -43,7 +44,16 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
-const emptyItemForm = (): CreateDevelopmentCommitmentOneDTO => ({ itemName: '', description: '', itemDate: '' })
+const emptyItemForm = (): CreateDevelopmentCommitmentOneDTO => ({ itemName: '', description: '', itemDate: '', done: false })
+
+function DoneBadge({ done }: { done?: boolean }) {
+  if (!done) return null
+  return (
+    <span className="inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800 dark:bg-green-900/40 dark:text-green-300">
+      Done
+    </span>
+  )
+}
 
 const emptyModuleForm = (): CreateLearningModuleDTO => ({
   moduleName: '', type: '', hours: undefined,
@@ -88,6 +98,7 @@ export default function DcommOnePage({ initialItems }: Props) {
 
   const [sortField, setSortField] = useState<SortField>('itemDate')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [tableTab, setTableTab] = useState<TableTab>('open')
 
   const sorted = useMemo(() => {
     return [...items].sort((a, b) => {
@@ -102,6 +113,10 @@ export default function DcommOnePage({ initialItems }: Props) {
       return sortDir === 'asc' ? ord : -ord
     })
   }, [items, sortField, sortDir])
+
+  const openRows = useMemo(() => sorted.filter((it) => !it.done), [sorted])
+  const closedRows = useMemo(() => sorted.filter((it) => it.done), [sorted])
+  const visibleRows = tableTab === 'open' ? openRows : closedRows
 
   async function loadModules(id: number) {
     if (loadedIds.has(id)) return
@@ -119,7 +134,7 @@ export default function DcommOnePage({ initialItems }: Props) {
 
   async function openEdit(item: DevelopmentCommitmentOne) {
     setEditingId(item.id!)
-    setItemForm({ itemName: item.itemName, description: item.description ?? '', itemDate: item.itemDate ?? '' })
+    setItemForm({ itemName: item.itemName, description: item.description ?? '', itemDate: item.itemDate ?? '', done: item.done ?? false })
     setModForm(emptyModuleForm()); setEditingModId(null); setActiveTab('details'); setError(null)
     setModalOpen(true)
     await loadModules(item.id!)
@@ -255,10 +270,32 @@ export default function DcommOnePage({ initialItems }: Props) {
         </div>
       </div>
 
+      {/* Open / Closed tabs */}
+      <div className="flex border-b border-border">
+        {(['open', 'closed'] as const).map((tab) => {
+          const count = tab === 'open' ? openRows.length : closedRows.length
+          return (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setTableTab(tab)}
+              className={`px-5 py-2.5 text-sm font-medium transition ${tableTab === tab ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              {tab === 'open' ? 'Open' : 'Closed'}
+              <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-xs">{count}</span>
+            </button>
+          )
+        })}
+      </div>
+
       {/* Table */}
-      {sorted.length === 0 ? (
+      {visibleRows.length === 0 ? (
         <div className="rounded-lg border border-dashed py-12 text-center">
-          <p className="text-sm text-muted-foreground">No learning items yet. Click <strong>New item</strong> to add one.</p>
+          <p className="text-sm text-muted-foreground">
+            {tableTab === 'open'
+              ? <>No open learning items. Click <strong>New item</strong> to add one.</>
+              : 'No completed items yet. Mark items done in their edit modal.'}
+          </p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border">
@@ -266,13 +303,14 @@ export default function DcommOnePage({ initialItems }: Props) {
             <thead className="bg-muted/60 text-left">
               <tr>
                 <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">Item Name</th>
+                <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">Status</th>
                 <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">Date</th>
                 <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">Modules</th>
                 <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {sorted.map((item) => {
+              {visibleRows.map((item) => {
                 const mods = modulesByItem[item.id!] ?? item.modules ?? []
                 return (
                   <tr
@@ -287,6 +325,7 @@ export default function DcommOnePage({ initialItems }: Props) {
                       <p className="truncate">{item.itemName}</p>
                       {item.description && <p className="truncate text-xs text-muted-foreground">{item.description}</p>}
                     </td>
+                    <td className="px-4 py-3"><DoneBadge done={item.done} /></td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {item.itemDate ?? (item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '—')}
                     </td>
@@ -356,6 +395,10 @@ export default function DcommOnePage({ initialItems }: Props) {
                   <Field label="Item date">
                     <Input type="date" value={itemForm.itemDate ?? ''} onChange={(e) => setItemForm((p) => ({ ...p, itemDate: e.target.value }))} />
                   </Field>
+                  <label className="flex items-center gap-2 cursor-pointer text-sm">
+                    <input type="checkbox" checked={itemForm.done ?? false} onChange={(e) => setItemForm((p) => ({ ...p, done: e.target.checked }))} className="h-4 w-4 rounded" />
+                    Done
+                  </label>
                   {error && <p className="text-sm text-destructive">{error}</p>}
                 </div>
                 <div className="flex items-center gap-2 border-t border-border px-6 py-4">
