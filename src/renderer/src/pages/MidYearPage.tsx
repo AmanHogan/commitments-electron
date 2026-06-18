@@ -1,11 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Dialog } from 'radix-ui'
-import { Plus, Pencil, Trash2, X, CalendarCheck } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, CalendarCheck, Eye } from 'lucide-react'
 import type { MidYearCheckin } from '@/types/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { DocumentViewer } from '@/components/ui/document-viewer'
+import { buildMidYearDoc, type ViewerDoc } from '@/lib/document-render'
 
 // ─── Workday question structure ───────────────────────────────────────────────
 
@@ -66,6 +68,7 @@ export default function MidYearPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [viewerDoc, setViewerDoc] = useState<ViewerDoc | null>(null)
 
   useEffect(() => {
     void window.api.midyear.getAll().then((all) => setCheckins(all as MidYearCheckin[]))
@@ -172,6 +175,7 @@ export default function MidYearPage() {
                   </div>
                 </div>
                 <div className="flex shrink-0 gap-1">
+                  <Button variant="ghost" size="icon-xs" aria-label="View" onClick={() => setViewerDoc(buildMidYearDoc(c))}><Eye className="h-3.5 w-3.5" /></Button>
                   <Button variant="ghost" size="icon-xs" onClick={() => openEdit(c)}><Pencil className="h-3.5 w-3.5" /></Button>
                   <Button variant="ghost" size="icon-xs" onClick={() => void handleDelete(c.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
                 </div>
@@ -180,6 +184,8 @@ export default function MidYearPage() {
           ))}
         </div>
       )}
+
+      <DocumentViewer doc={viewerDoc} open={viewerDoc != null} onClose={() => setViewerDoc(null)} />
 
       {/* Modal */}
       <Dialog.Root open={modalOpen} onOpenChange={(v) => { if (!v) closeModal() }}>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, ArrowLeft, Trash2, Save } from 'lucide-react'
+import { Plus, ArrowLeft, Trash2, Save, Eye } from 'lucide-react'
 import type {
   Progression,
   SaveProgressionInput,
@@ -9,6 +9,8 @@ import type {
 import { newManualStar, starCharCount } from '@/lib/star'
 import StarEntryEditor from '@/components/star-entry-editor'
 import { Textarea } from '@/components/ui/textarea'
+import { DocumentViewer } from '@/components/ui/document-viewer'
+import { buildProgressionDoc, type ViewerDoc } from '@/lib/document-render'
 
 type Tab = 'business' | 'program' | 'development'
 
@@ -82,6 +84,7 @@ export default function ProgressionsPage() {
   const [businessEntries, setBusinessEntries] = useState<StarEntry[]>([])
   const [programEntries, setProgramEntries] = useState<StarEntry[]>([])
   const [developmentEntries, setDevelopmentEntries] = useState<DevelopmentEntry[]>([])
+  const [viewerDoc, setViewerDoc] = useState<ViewerDoc | null>(null)
 
   useEffect(() => {
     window.api.progressions.getAll().then((rows) => setProgressions(rows as Progression[]))
@@ -168,6 +171,13 @@ export default function ProgressionsPage() {
               <div className="flex gap-2">
                 <button
                   type="button"
+                  onClick={() => setViewerDoc(buildProgressionDoc(p))}
+                  className="flex items-center gap-1 rounded border px-3 py-1 text-sm hover:bg-accent"
+                >
+                  <Eye className="h-3.5 w-3.5" /> View
+                </button>
+                <button
+                  type="button"
                   onClick={() => openEdit(p)}
                   className="rounded border px-3 py-1 text-sm hover:bg-accent"
                 >
@@ -184,6 +194,7 @@ export default function ProgressionsPage() {
             </li>
           ))}
         </ul>
+        <DocumentViewer doc={viewerDoc} open={viewerDoc != null} onClose={() => setViewerDoc(null)} />
       </div>
     )
   }
@@ -212,6 +223,13 @@ export default function ProgressionsPage() {
             <Trash2 className="h-4 w-4" /> Delete
           </button>
         )}
+        <button
+          type="button"
+          onClick={() => setViewerDoc(buildProgressionDoc({ id: editing!.id, title: title || 'Untitled', businessEntries, programEntries, developmentEntries }))}
+          className="flex items-center gap-1 rounded border px-3 py-1.5 text-sm hover:bg-accent"
+        >
+          <Eye className="h-4 w-4" /> Preview
+        </button>
         <button
           type="button"
           onClick={handleSave}
@@ -317,6 +335,8 @@ export default function ProgressionsPage() {
           </>
         )}
       </div>
+
+      <DocumentViewer doc={viewerDoc} open={viewerDoc != null} onClose={() => setViewerDoc(null)} />
     </div>
   )
 }

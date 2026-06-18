@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Dialog } from 'radix-ui'
-import { Plus, Pencil, Trash2, X, CalendarRange, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, CalendarRange, ChevronDown, ChevronUp, Eye } from 'lucide-react'
 import type { EndOfYearReview, QuickAccomplishment, QuickAccomplishmentCategory, QAStatus } from '@/types/types'
 import { QA_STATUSES } from '@/types/types'
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,8 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
+import { DocumentViewer } from '@/components/ui/document-viewer'
+import { buildEndOfYearDoc, type ViewerDoc } from '@/lib/document-render'
 
 // ─── Commitment templates ─────────────────────────────────────────────────────
 
@@ -394,6 +396,7 @@ export default function EndOfYearPage() {
   const [_activeTab, _setActiveTab] = useState<'assessment' | 'accomplishments'>('assessment')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [viewerDoc, setViewerDoc] = useState<ViewerDoc | null>(null)
 
   useEffect(() => {
     void window.api.endofyear.getAll().then((all) => setReviews(all as EndOfYearReview[]))
@@ -509,6 +512,7 @@ export default function EndOfYearPage() {
                   </div>
                 </div>
                 <div className="flex shrink-0 gap-1">
+                  <Button variant="ghost" size="icon-xs" aria-label="View" onClick={() => setViewerDoc(buildEndOfYearDoc(r))}><Eye className="h-3.5 w-3.5" /></Button>
                   <Button variant="ghost" size="icon-xs" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
                   <Button variant="ghost" size="icon-xs" onClick={() => void handleDelete(r.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
                 </div>
@@ -527,6 +531,8 @@ export default function EndOfYearPage() {
           onDelete={deleteQa}
         />
       </div>
+
+      <DocumentViewer doc={viewerDoc} open={viewerDoc != null} onClose={() => setViewerDoc(null)} />
 
       {/* Review modal */}
       <Dialog.Root open={modalOpen} onOpenChange={(v) => { if (!v) closeModal() }}>
