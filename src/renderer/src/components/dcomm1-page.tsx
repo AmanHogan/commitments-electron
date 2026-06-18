@@ -19,7 +19,9 @@ import {
 import { exportDcomm1ToPdf } from '@/lib/utils/export-pdf'
 import { exportEachDcomm1ToMarkdown } from '@/lib/utils/export-markdown'
 import DocComp from './ui/doc-comp'
+import DevHoursSummary from './dev-hours-summary'
 import { ExportRangeButton } from './ui/export-range-button'
+import { TagInput, tagColor } from './ui/tags'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
@@ -45,7 +47,22 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
-const emptyItemForm = (): CreateDevelopmentCommitmentOneDTO => ({ itemName: '', description: '', itemDate: '', done: false })
+const emptyItemForm = (): CreateDevelopmentCommitmentOneDTO => ({ itemName: '', description: '', itemDate: '', done: false, hours: undefined })
+
+function sumModuleHours(mods: LearningModule[]): number {
+  return mods.reduce((sum, m) => sum + (m.hours ?? 0), 0)
+}
+
+// Resolve module count + total hours for an item. Prefers freshly loaded
+// modules (so edits reflect immediately); falls back to backend aggregates.
+// When an item has no modules, total hours is the manually-entered value.
+function itemTotals(item: DevelopmentCommitmentOne, loadedMods: LearningModule[] | undefined): { count: number; hours: number } {
+  const count = loadedMods ? loadedMods.length : (item.moduleCount ?? 0)
+  if (count > 0) {
+    return { count, hours: loadedMods ? sumModuleHours(loadedMods) : (item.moduleHours ?? 0) }
+  }
+  return { count: 0, hours: item.hours ?? 0 }
+}
 
 function DoneBadge({ done }: { done?: boolean }) {
   if (!done) return null
@@ -135,7 +152,7 @@ export default function DcommOnePage({ initialItems }: Props) {
 
   async function openEdit(item: DevelopmentCommitmentOne) {
     setEditingId(item.id!)
-    setItemForm({ itemName: item.itemName, description: item.description ?? '', itemDate: item.itemDate ?? '', done: item.done ?? false })
+    setItemForm({ itemName: item.itemName, description: item.description ?? '', itemDate: item.itemDate ?? '', done: item.done ?? false, hours: item.hours, tags: item.tags ?? [] })
     setModForm(emptyModuleForm()); setEditingModId(null); setActiveTab('details'); setError(null)
     setModalOpen(true)
     await loadModules(item.id!)
@@ -176,20 +193,30 @@ export default function DcommOnePage({ initialItems }: Props) {
     } finally { setLoading(false) }
   }
 
+  // Keep the per-item aggregates (used by the table + hours dashboard) in sync
+  // whenever an item's module list changes, without a full refetch.
+  function syncItemAggregates(itemId: number, mods: LearningModule[]) {
+    const moduleHours = mods.reduce((s, m) => s + (m.hours ?? 0), 0)
+    setItems((p) => p.map((it) => (it.id === itemId ? { ...it, moduleCount: mods.length, moduleHours } : it)))
+  }
+
   // Module handlers
   async function handleSaveMod(e: FormEvent) {
     e.preventDefault()
     if (!modForm.moduleName.trim() || editingId == null) return
     setLoading(true); setError(null)
     try {
+      let nextMods: LearningModule[]
       if (editingModId != null) {
         const updated = await updateLearningModule(editingModId, modForm)
-        setModulesByItem((p) => ({ ...p, [editingId]: (p[editingId] ?? []).map((m) => (m.id === updated.id ? updated : m)) }))
+        nextMods = (modulesByItem[editingId] ?? []).map((m) => (m.id === updated.id ? updated : m))
         setEditingModId(null)
       } else {
         const created = await createModuleForItem(editingId, modForm)
-        setModulesByItem((p) => ({ ...p, [editingId]: [...(p[editingId] ?? []), created] }))
+        nextMods = [...(modulesByItem[editingId] ?? []), created]
       }
+      setModulesByItem((p) => ({ ...p, [editingId]: nextMods }))
+      syncItemAggregates(editingId, nextMods)
       setModForm(emptyModuleForm())
     } catch {
       setError('Could not save module.')
@@ -201,7 +228,9 @@ export default function DcommOnePage({ initialItems }: Props) {
     setLoading(true)
     try {
       await deleteLearningModule(modId)
-      setModulesByItem((p) => ({ ...p, [editingId]: (p[editingId] ?? []).filter((m) => m.id !== modId) }))
+      const nextMods = (modulesByItem[editingId] ?? []).filter((m) => m.id !== modId)
+      setModulesByItem((p) => ({ ...p, [editingId]: nextMods }))
+      syncItemAggregates(editingId, nextMods)
     } finally { setLoading(false) }
   }
 
@@ -232,6 +261,9 @@ export default function DcommOnePage({ initialItems }: Props) {
         ]}
       />
 
+      {/* Hours learned dashboard */}
+      <DevHoursSummary items={items} />
+
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         <Button onClick={openCreate}><Plus className="h-4 w-4" />New item</Button>
@@ -261,7 +293,7 @@ export default function DcommOnePage({ initialItems }: Props) {
             <Upload className="h-4 w-4" />Import JSON
           </Button>
           <Button variant="outline" size="sm" onClick={() => {
-            const envelope = { type: 'dcomm1', version: 1, exportedAt: new Date().toISOString(), records: items.map(({ id: _id, createdAt: _ca, updatedAt: _ua, modules: _m, ...rest }) => rest) }
+            const envelope = { type: 'dcomm1', version: 1, exportedAt: new Date().toISOString(), records: items.map(({ id: _id, createdAt: _ca, updatedAt: _ua, modules: _m, moduleCount: _mc, moduleHours: _mh, ...rest }) => rest) }
             downloadBlob(JSON.stringify(envelope, null, 2), 'development-commitment.json', 'application/json')
           }}>
             <Download className="h-4 w-4" />Export JSON
@@ -311,12 +343,14 @@ export default function DcommOnePage({ initialItems }: Props) {
                 <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">Status</th>
                 <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">Date</th>
                 <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">Modules</th>
+                <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">Total Hours</th>
                 <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground">Actions</th>
               </tr>
             </thead>
             <tbody>
               {visibleRows.map((item) => {
-                const mods = modulesByItem[item.id!] ?? item.modules ?? []
+                const loadedMods = modulesByItem[item.id!] ?? item.modules
+                const { count, hours } = itemTotals(item, loadedMods)
                 return (
                   <tr
                     key={item.id}
@@ -329,12 +363,23 @@ export default function DcommOnePage({ initialItems }: Props) {
                     <td className="max-w-xs px-4 py-3 font-medium">
                       <p className="truncate">{item.itemName}</p>
                       {item.description && <p className="truncate text-xs text-muted-foreground">{item.description}</p>}
+                      {item.tags && item.tags.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {item.tags.map((t) => (
+                            <span key={t} className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${tagColor(t)}`}>{t}</span>
+                          ))}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3"><DoneBadge done={item.done} /></td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {item.itemDate ?? (item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '—')}
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">{mods.length}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{count}</td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {hours > 0 ? `${hours} hr${hours === 1 ? '' : 's'}` : '—'}
+                      {count > 0 && <span className="ml-1 text-xs text-muted-foreground/60">(from modules)</span>}
+                    </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" size="icon-xs" aria-label="Edit" onClick={(e) => { e.stopPropagation(); void openEdit(item) }}>
@@ -399,6 +444,30 @@ export default function DcommOnePage({ initialItems }: Props) {
                   </Field>
                   <Field label="Item date">
                     <Input type="date" value={itemForm.itemDate ?? ''} onChange={(e) => setItemForm((p) => ({ ...p, itemDate: e.target.value }))} />
+                  </Field>
+                  <Field label="Total hours">
+                    {currentMods.length > 0 ? (
+                      <>
+                        <Input type="number" value={sumModuleHours(currentMods)} readOnly className="bg-muted/40" />
+                        <p className="text-xs text-muted-foreground">Automatically summed from {currentMods.length} module{currentMods.length === 1 ? '' : 's'}. Edit module hours in the Modules tab.</p>
+                      </>
+                    ) : (
+                      <>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.5"
+                          value={itemForm.hours ?? ''}
+                          onChange={(e) => setItemForm((p) => ({ ...p, hours: e.target.value ? parseFloat(e.target.value) : undefined }))}
+                          placeholder="Enter hours manually"
+                        />
+                        <p className="text-xs text-muted-foreground">Enter hours manually. Once you add modules, this is summed from them automatically.</p>
+                      </>
+                    )}
+                  </Field>
+                  <Field label="Tags">
+                    <TagInput tags={itemForm.tags ?? []} onChange={(tags) => setItemForm((p) => ({ ...p, tags }))} />
+                    <p className="text-xs text-muted-foreground">Group hours by skill area (e.g. Java, AI, Leadership). Used in the hours dashboard.</p>
                   </Field>
                   <label className="flex items-center gap-2 cursor-pointer text-sm">
                     <input type="checkbox" checked={itemForm.done ?? false} onChange={(e) => setItemForm((p) => ({ ...p, done: e.target.checked }))} className="h-4 w-4 rounded" />

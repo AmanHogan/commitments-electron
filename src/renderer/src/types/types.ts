@@ -60,6 +60,7 @@ export type DevelopmentCommitmentOne = {
   itemDate?: string
   done?: boolean
   hours?: number
+  tags?: string[]
   modules?: LearningModule[]
   // Read-only aggregates returned by the backend
   moduleCount?: number
@@ -97,6 +98,7 @@ export const emptyDevelopmentCommitmentOneForm = (): CreateDevelopmentCommitment
   itemDate: "",
   done: false,
   hours: undefined,
+  tags: [],
 })
 
 export const emptyLearningModuleForm = (): CreateLearningModuleDTO => ({

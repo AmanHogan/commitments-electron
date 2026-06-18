@@ -168,6 +168,11 @@ function dcomm1Fields(item: DevelopmentCommitmentOne, modules: ModuleRecord[]): 
   lines.push(row("Item Date", item.itemDate))
   lines.push(row("Description", item.description))
   lines.push(row("Done", item.done))
+  // Total hours: summed from modules when present, otherwise the manual value.
+  const totalHours = modules.length > 0
+    ? modules.reduce((sum, m) => sum + (m.hours ?? 0), 0)
+    : (item.hours ?? 0)
+  if (totalHours > 0) lines.push(row("Total Hours", totalHours))
   if (modules.length > 0) {
     lines.push("\n### Modules\n")
     modules.forEach((m, j) => {

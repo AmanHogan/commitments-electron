@@ -293,6 +293,7 @@ try { db.exec("ALTER TABLE development_commitments_two ADD COLUMN impact TEXT") 
 try { db.exec("ALTER TABLE development_commitments_one ADD COLUMN description TEXT") } catch { /* already exists */ }
 try { db.exec("ALTER TABLE development_commitments_one ADD COLUMN done INTEGER DEFAULT 0") } catch { /* already exists */ }
 try { db.exec("ALTER TABLE development_commitments_one ADD COLUMN hours REAL") } catch { /* already exists */ }
+try { db.exec("ALTER TABLE development_commitments_one ADD COLUMN tags TEXT DEFAULT '[]'") } catch { /* already exists */ }
 
 // NOTE: 'finished' is intentionally NOT a global boolean column. In
 // learning_modules it is a boolean flag, but in development_commitments_two,
@@ -411,11 +412,11 @@ const DCOMM1_SELECT = `
 export const dcomm1 = {
   getAll: () => normalizeAll(db.prepare(`${DCOMM1_SELECT} ORDER BY d.createdAt DESC`).all() as Record<string, unknown>[]),
   create: (p: Record<string, unknown>) => {
-    const r = db.prepare('INSERT INTO development_commitments_one (itemName,description,itemDate,done,hours) VALUES (?,?,?,?,?)').run(p.itemName, p.description??null, p.itemDate??null, boolInt(p.done), p.hours??null)
+    const r = db.prepare('INSERT INTO development_commitments_one (itemName,description,itemDate,done,hours,tags) VALUES (?,?,?,?,?,?)').run(p.itemName, p.description??null, p.itemDate??null, boolInt(p.done), p.hours??null, JSON.stringify(p.tags ?? []))
     return normalize(db.prepare(`${DCOMM1_SELECT} WHERE d.id=?`).get(r.lastInsertRowid) as Record<string, unknown>)
   },
   update: (id: number, p: Record<string, unknown>) => {
-    db.prepare("UPDATE development_commitments_one SET itemName=?,description=?,itemDate=?,done=?,hours=?,updatedAt=datetime('now') WHERE id=?").run(p.itemName, p.description??null, p.itemDate??null, boolInt(p.done), p.hours??null, id)
+    db.prepare("UPDATE development_commitments_one SET itemName=?,description=?,itemDate=?,done=?,hours=?,tags=?,updatedAt=datetime('now') WHERE id=?").run(p.itemName, p.description??null, p.itemDate??null, boolInt(p.done), p.hours??null, JSON.stringify(p.tags ?? []), id)
     return normalize(db.prepare(`${DCOMM1_SELECT} WHERE d.id=?`).get(id) as Record<string, unknown>)
   },
   delete: (id: number) => { db.prepare('DELETE FROM development_commitments_one WHERE id=?').run(id) },
