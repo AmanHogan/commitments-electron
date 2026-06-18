@@ -51,7 +51,7 @@ export function toFormState(commitment: BusinessCommitmentOne): BusinessCommitme
     alignment: commitment.alignment ?? "",
     statusNotes: commitment.statusNotes ?? "",
     valueEntryList,
-    status: "IN_PROGRESS",
+    status: commitment.status ?? "IN_PROGRESS",
   }
 }
 
@@ -60,7 +60,8 @@ export function toFormState(commitment: BusinessCommitmentOne): BusinessCommitme
  * Maps valueEntryList entries back to the backend's individual boolean+text pairs.
  */
 export function toApiPayload(form: BusinessCommitmentOneFormState): CreateBusinessCommitmentOneDTO {
-  const { valueEntryList, status, ...rest } = form
+  // Keep `status` in `rest` so it is persisted; only valueEntryList is UI-only.
+  const { valueEntryList, ...rest } = form
 
   const valueFields: Partial<CreateBusinessCommitmentOneDTO> = {
     improvedOutcomes: false,
