@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ExportRangeButton } from "@/components/ui/export-range-button"
 import { exportActionItemsToMarkdown } from "@/lib/utils/export-markdown"
 
 const criticalityColors: Record<string, string> = {
@@ -234,9 +235,11 @@ export default function ActionItemsPage({ initialItems }: Props) {
       <div className="flex flex-wrap items-center gap-3">
         <Button onClick={openCreate}><Plus className="h-4 w-4" />Create action item</Button>
         <div className="ml-auto">
-          <Button variant="outline" size="sm" onClick={() => exportActionItemsToMarkdown([...openItems, ...closedItems])}>
-            Export MD
-          </Button>
+          <ExportRangeButton
+            items={[...openItems, ...closedItems]}
+            getDate={(i) => i.dateFinished || i.dateStarted || i.dueDate}
+            onExport={(f) => exportActionItemsToMarkdown(f)}
+          />
         </div>
       </div>
 

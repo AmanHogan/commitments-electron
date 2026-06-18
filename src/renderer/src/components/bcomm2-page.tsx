@@ -16,8 +16,9 @@ import {
   deleteBcomm2SubEvent,
 } from '@/lib/actions'
 import { exportBcomm2ToPdf } from '@/lib/utils/export-pdf'
-import { exportBcomm2ToMarkdown } from '@/lib/utils/export-markdown'
+import { exportEachBcomm2ToMarkdown } from '@/lib/utils/export-markdown'
 import DocComp from './ui/doc-comp'
+import { ExportRangeButton } from './ui/export-range-button'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
@@ -258,7 +259,11 @@ export default function BcommTwoPage({ initialEvents }: Props) {
             <Download className="h-4 w-4" />Export JSON
           </Button>
           <Button variant="outline" size="sm" onClick={() => void exportBcomm2ToPdf(events)}>Export PDF</Button>
-          <Button variant="outline" size="sm" onClick={() => exportBcomm2ToMarkdown(events)}>Export MD</Button>
+          <ExportRangeButton
+            items={events}
+            getDate={(ev) => ev.finished || ev.started}
+            onExport={(f) => void exportEachBcomm2ToMarkdown(f)}
+          />
         </div>
       </div>
 

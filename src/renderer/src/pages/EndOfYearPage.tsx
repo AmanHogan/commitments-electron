@@ -124,10 +124,6 @@ function reviewFormFrom(r: EndOfYearReview): ReviewFormState {
   return { title: r.title, bcomm1Notes: r.bcomm1Notes, bcomm2Notes: r.bcomm2Notes, dcomm1Notes: r.dcomm1Notes, dcomm2Notes: r.dcomm2Notes }
 }
 
-function emptyQaForm(): QaFormState {
-  return { category: 'bcomm1', description: '', dateFinished: '', status: 'Completed' }
-}
-
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -182,7 +178,7 @@ function CommitmentSection({
   )
 }
 
-// ─── Quick accomplishments panel ──────────────────────────────────────────────
+// ─── Quick accomplishments tabbed panel ───────────────────────────────────────
 
 function QuickAccomplishmentsPanel({
   accomplishments,
@@ -195,118 +191,172 @@ function QuickAccomplishmentsPanel({
   onEdit: (id: number, qa: QaFormState) => Promise<void>
   onDelete: (id: number) => Promise<void>
 }) {
-  const [form, setForm] = useState<QaFormState>(emptyQaForm())
+  const [activeCategory, setActiveCategory] = useState<QuickAccomplishmentCategory>('bcomm1')
+  const [addDesc, setAddDesc] = useState('')
+  const [addDate, setAddDate] = useState('')
+  const [addStatus, setAddStatus] = useState<QAStatus>('Completed')
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [editDesc, setEditDesc] = useState('')
+  const [editDate, setEditDate] = useState('')
+  const [editStatus, setEditStatus] = useState<QAStatus>('Completed')
   const [saving, setSaving] = useState(false)
 
-  function setF<K extends keyof QaFormState>(k: K, v: QaFormState[K]) {
-    setForm((p) => ({ ...p, [k]: v }))
-  }
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault()
-    if (!form.description.trim()) return
-    setSaving(true)
-    try {
-      if (editingId != null) {
-        await onEdit(editingId, form)
-        setEditingId(null)
-      } else {
-        await onAdd(form)
-      }
-      setForm(emptyQaForm())
-    } finally { setSaving(false) }
-  }
+  const tabItems = accomplishments.filter((q) => q.category === activeCategory)
 
   function startEdit(qa: QuickAccomplishment) {
     setEditingId(qa.id)
-    setForm({ category: qa.category, description: qa.description, dateFinished: qa.dateFinished ?? '', status: qa.status })
+    setEditDesc(qa.description)
+    setEditDate(qa.dateFinished ?? '')
+    setEditStatus(qa.status)
   }
 
-  // Group by category
-  const grouped = QA_CATEGORIES.map((cat) => ({
-    ...cat,
-    items: accomplishments.filter((q) => q.category === cat.key),
-  }))
+  function cancelEdit() {
+    setEditingId(null); setEditDesc(''); setEditDate(''); setEditStatus('Completed')
+  }
+
+  async function handleAdd(e: FormEvent) {
+    e.preventDefault()
+    if (!addDesc.trim()) return
+    setSaving(true)
+    try {
+      await onAdd({ category: activeCategory, description: addDesc.trim(), dateFinished: addDate, status: addStatus })
+      setAddDesc(''); setAddDate(''); setAddStatus('Completed')
+    } finally { setSaving(false) }
+  }
+
+  async function handleUpdate(e: FormEvent) {
+    e.preventDefault()
+    if (editingId == null || !editDesc.trim()) return
+    setSaving(true)
+    try {
+      await onEdit(editingId, { category: activeCategory, description: editDesc.trim(), dateFinished: editDate, status: editStatus })
+      cancelEdit()
+    } finally { setSaving(false) }
+  }
 
   return (
-    <div className="flex flex-col gap-4">
-      <p className="text-sm font-semibold">Quick Accomplishments</p>
-      <p className="text-xs text-muted-foreground">
-        Short one-sentence accomplishments tied to each commitment — like Workday quick accomplishments. These persist across all end-of-year reviews.
-      </p>
-
-      {/* Add / Edit form */}
-      <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col gap-3 rounded-lg border border-border p-4">
-        <p className="text-xs font-semibold">{editingId != null ? 'Edit accomplishment' : 'Add accomplishment'}</p>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Commitment">
-            <Select value={form.category} onValueChange={(v) => setF('category', v as QuickAccomplishmentCategory)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {QA_CATEGORIES.map((c) => <SelectItem key={c.key} value={c.key}>{c.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Status">
-            <Select value={form.status} onValueChange={(v) => setF('status', v as QAStatus)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {QA_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </Field>
+    <div className="flex flex-col gap-0">
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold">Quick Accomplishments</p>
+          <p className="text-xs text-muted-foreground">One-sentence accomplishments per commitment — like Workday quick accomplishments. Persist across all reviews.</p>
         </div>
-        <Field label="What did you do? (one sentence)">
-          <Input
-            value={form.description}
-            onChange={(e) => setF('description', e.target.value)}
-            placeholder="e.g. Delivered automated reporting pipeline reducing manual effort by 80%"
-            required
-          />
-        </Field>
-        <Field label="Date finished">
-          <Input type="date" value={form.dateFinished} onChange={(e) => setF('dateFinished', e.target.value)} />
-        </Field>
-        <div className="flex gap-2 justify-end">
-          {editingId != null && (
-            <Button type="button" variant="outline" size="sm" onClick={() => { setEditingId(null); setForm(emptyQaForm()) }}>Cancel</Button>
-          )}
-          <Button type="submit" size="sm" disabled={saving || !form.description.trim()}>
-            <Plus className="h-4 w-4" />{editingId != null ? 'Update' : 'Add'}
-          </Button>
-        </div>
-      </form>
+      </div>
 
-      {/* Grouped list */}
-      {accomplishments.length === 0 ? (
-        <p className="text-sm text-muted-foreground italic">No quick accomplishments yet.</p>
-      ) : (
-        <div className="flex flex-col gap-4">
-          {grouped.map((cat) => cat.items.length > 0 && (
-            <div key={cat.key}>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{cat.label}</p>
-              <div className="flex flex-col gap-2">
-                {cat.items.map((qa) => (
-                  <div key={qa.id} className="flex items-start gap-3 rounded-lg border border-border bg-card px-4 py-2.5 text-sm">
-                    <div className="min-w-0 flex-1">
-                      <p className="leading-snug">{qa.description}</p>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        {qa.dateFinished && <span>Finished {qa.dateFinished}</span>}
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[qa.status]}`}>{qa.status}</span>
+      {/* Category tabs */}
+      <div className="flex border-b border-border">
+        {QA_CATEGORIES.map((cat) => {
+          const count = accomplishments.filter((q) => q.category === cat.key).length
+          return (
+            <button
+              key={cat.key}
+              type="button"
+              onClick={() => { setActiveCategory(cat.key); cancelEdit() }}
+              className={`px-4 py-2 text-xs font-medium transition ${activeCategory === cat.key ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              {cat.label}
+              {count > 0 && <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-xs">{count}</span>}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Table */}
+      <div className="overflow-x-auto rounded-b-lg border border-t-0 border-border">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/60 text-left">
+            <tr>
+              <th className="px-4 py-2 text-xs font-semibold text-muted-foreground">Accomplishment</th>
+              <th className="px-4 py-2 text-xs font-semibold text-muted-foreground">Date Finished</th>
+              <th className="px-4 py-2 text-xs font-semibold text-muted-foreground">Status</th>
+              <th className="px-4 py-2 text-right text-xs font-semibold text-muted-foreground">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {/* Add row */}
+            <tr className="border-t border-border bg-muted/20">
+              <td className="px-3 py-2" colSpan={4}>
+                <form onSubmit={(e) => void handleAdd(e)} className="flex flex-wrap items-center gap-2">
+                  <input
+                    className="flex-1 min-w-48 rounded border border-border bg-background px-2 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    value={addDesc}
+                    onChange={(e) => setAddDesc(e.target.value)}
+                    placeholder="Add one-liner accomplishment…"
+                    required
+                  />
+                  <input
+                    type="date"
+                    className="rounded border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    value={addDate}
+                    onChange={(e) => setAddDate(e.target.value)}
+                  />
+                  <Select value={addStatus} onValueChange={(v) => setAddStatus(v as QAStatus)}>
+                    <SelectTrigger className="w-40 h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {QA_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Button type="submit" size="sm" disabled={saving || !addDesc.trim()}>
+                    <Plus className="h-3.5 w-3.5" />Add
+                  </Button>
+                </form>
+              </td>
+            </tr>
+
+            {tabItems.length === 0 ? (
+              <tr className="border-t border-border">
+                <td colSpan={4} className="px-4 py-6 text-center text-sm text-muted-foreground italic">
+                  No accomplishments yet for this commitment.
+                </td>
+              </tr>
+            ) : tabItems.map((qa) => (
+              <tr key={qa.id} className="border-t border-border">
+                {editingId === qa.id ? (
+                  <td colSpan={4} className="px-3 py-2">
+                    <form onSubmit={(e) => void handleUpdate(e)} className="flex flex-wrap items-center gap-2">
+                      <input
+                        className="flex-1 min-w-48 rounded border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                        value={editDesc}
+                        onChange={(e) => setEditDesc(e.target.value)}
+                        required
+                        autoFocus
+                      />
+                      <input
+                        type="date"
+                        className="rounded border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                        value={editDate}
+                        onChange={(e) => setEditDate(e.target.value)}
+                      />
+                      <Select value={editStatus} onValueChange={(v) => setEditStatus(v as QAStatus)}>
+                        <SelectTrigger className="w-40 h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {QA_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <Button type="submit" size="sm" disabled={saving}>Update</Button>
+                      <Button type="button" variant="outline" size="sm" onClick={cancelEdit}>Cancel</Button>
+                    </form>
+                  </td>
+                ) : (
+                  <>
+                    <td className="px-4 py-2.5 text-sm">{qa.description}</td>
+                    <td className="px-4 py-2.5 text-sm text-muted-foreground">{qa.dateFinished ?? '—'}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[qa.status]}`}>{qa.status}</span>
+                    </td>
+                    <td className="px-4 py-2.5 text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="icon-xs" onClick={() => startEdit(qa)}><Pencil className="h-3 w-3" /></Button>
+                        <Button variant="ghost" size="icon-xs" onClick={() => void onDelete(qa.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
                       </div>
-                    </div>
-                    <div className="flex shrink-0 gap-1">
-                      <Button variant="ghost" size="icon-xs" onClick={() => startEdit(qa)}><Pencil className="h-3 w-3" /></Button>
-                      <Button variant="ghost" size="icon-xs" onClick={() => void onDelete(qa.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+                    </td>
+                  </>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

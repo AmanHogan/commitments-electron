@@ -8,6 +8,7 @@ import { toFormState, toApiPayload } from '@/lib/mappers/businessCommitmentOneMa
 import { exportBcomm1ToPdf } from '@/lib/utils/export-pdf'
 import { exportEachBcomm1ToMarkdown } from '@/lib/utils/export-markdown'
 import DocComp from './ui/doc-comp'
+import { ExportRangeButton } from './ui/export-range-button'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
@@ -198,7 +199,11 @@ export default function BcommPage({ initialCommitments }: Props) {
             <Download className="h-4 w-4" />Export JSON
           </Button>
           <Button variant="outline" size="sm" onClick={() => void exportBcomm1ToPdf(commitments)}>Export PDF</Button>
-          <Button variant="outline" size="sm" onClick={() => void exportEachBcomm1ToMarkdown(commitments)}>Export MD</Button>
+          <ExportRangeButton
+            items={commitments}
+            getDate={(c) => c.dateCompleted || c.started}
+            onExport={(f) => void exportEachBcomm1ToMarkdown(f)}
+          />
         </div>
       </div>
 

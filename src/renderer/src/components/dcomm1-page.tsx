@@ -17,8 +17,9 @@ import {
   deleteLearningModule,
 } from '@/lib/actions'
 import { exportDcomm1ToPdf } from '@/lib/utils/export-pdf'
-import { exportDcomm1ToMarkdown } from '@/lib/utils/export-markdown'
+import { exportEachDcomm1ToMarkdown } from '@/lib/utils/export-markdown'
 import DocComp from './ui/doc-comp'
+import { ExportRangeButton } from './ui/export-range-button'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
@@ -266,7 +267,11 @@ export default function DcommOnePage({ initialItems }: Props) {
             <Download className="h-4 w-4" />Export JSON
           </Button>
           <Button variant="outline" size="sm" onClick={() => void exportDcomm1ToPdf(items, modulesByItem)}>Export PDF</Button>
-          <Button variant="outline" size="sm" onClick={() => void exportDcomm1ToMarkdown(items)}>Export MD</Button>
+          <ExportRangeButton
+            items={items}
+            getDate={(it) => it.itemDate || it.createdAt}
+            onExport={(f) => void exportEachDcomm1ToMarkdown(f)}
+          />
         </div>
       </div>
 
